@@ -1,0 +1,3260 @@
+---
+title: "Rによるデータ解析備忘録"
+author: "MT"
+date: '最終更新: `r Sys.Date()`'
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+  word_document:
+    toc: yes
+    toc_depth: '3'
+  html_document: 
+    number_section: yes
+    toc: yes
+    toc_float: yes
+    highlight: textmate
+    theme: lumen
+  always_allow_html: yes
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r klippy, echo=FALSE, include=TRUE}
+klippy::klippy(position = c('top', 'right'))  ## コードのコピーボタンを作成、PDFやWordでKnitする際はコメントアウトする
+```
+
+# Rプログラミングの基礎
+
+## RStudioの基本
+
+以下のサイトからRとRStudioのインストーラをダウンロードし、インストール\
+R: <https://cran.ism.ac.jp/> または
+<https://cran.r-project.org/mirrors.html>\
+RStudio: <https://posit.co/download/rstudio-desktop/>
+
+左上のSource paneでR scriptにコードを記述する。\
+コードを選択して*Cmd+Return* または*Option+Return*
+でコードが実行される。\
+*Cmd+Option+P*
+で直前に実行したコードを再実行できる、コードを一部変更して確認する際に便利。
+
+右上のEnvironment
+paneには作成したオブジェクトが表示される。オブジェクトの中身を表示させたり、オブジェクトの削除も可能。\
+右下のFile
+paneではフォルダ内のファイル、作成したグラフ、機能の説明などが表示される。Packagesパネルではパッケージのインストールとロードも可能。\
+基本的に1件のデータ解析ごとに専用のフォルダを作成し、それをR
+projectファイルと関連させて管理する。
+
+## 使用するパッケージのロード
+
+```{r message=FALSE}
+library(pacman)
+p_load(tidyverse, readxl, openxlsx)  # 一度に複数のパッケージをロードできる
+```
+
+## Rにおける計算の基本
+
+### 基本演算
+
+Rは動的プログラミング言語（インタプリタ型言語）であり、Rコードを実行するためにコンパイルする必要は無く、1行ずつコードが解釈されて実行される。\
+四則演算は`+, -, *, /`で可能。ハッシュタグ
+`#`はコードにおけるコメントを表す。
+
+```{r}
+1 + 2  # #記号より右は無視される
+4 - 1
+12 * 6
+5 ^ 3 # べき乗
+20 / 3
+20 %/% 3 # 整数商
+20 %% 3  # 剰余（mod）
+```
+
+------------------------------------------------------------------------
+
+コロン`:`は1刻みで連続な数を簡単に作成できる。他の四則演算と組み合わせることも可能。
+
+```{r}
+1:5
+-2:3
+-1:-10
+1:5 + 2
+1:5 - 2
+1:5 / 2
+1:5 * 2
+1:5 * 1:5
+```
+
+### 関数
+
+Rには基本的な数学操作を行う関数や、データの統計的情報を知るための集計関数が最初から用意されている。\
+関数に渡すデータは**引数（ひきすう）**と呼ばれる。データそのもの、Rオブジェクト、他の関数の結果、いずれも引数になり得る。
+下記のround関数におけるdigitsのように、関数で指定する対象の引数を仮引数（parameter）と呼び、仮引数に実際に
+渡される値のことを実引数（argument）と呼ぶ。誤解が生じない場合は2つを区別せずに引数とする。
+
+```{r}
+round(3.1415, digits = 2)  # 数値を丸める、digitsは小数点以下の桁数
+factorial(4)  # 階乗を計算（4*3*2*1）
+factorial(round(3.14, digits = 0)) # 関数の結果が引数になる場合、最も内側の関数から外側に向かって関数が実行される。
+x <- 1:50
+length(1:20) # データの個数
+max(x) # 最大値
+which.max(x) # 最大値の位置（インデックス）
+min(x) # 最小値
+which.min(x) # 最小値の位置
+mean(x) # 平均値
+median(x) # 中央値
+sd(x) # 標準偏差
+var(x) # 分散
+range(x) # 範囲
+quantile(x) # 分位点
+summary(x) # 要約統計量
+```
+
+------------------------------------------------------------------------
+
+関数の引数の指定は省略可能。また`args()`関数で関数の引数名とデフォルト値を調べることができる。
+
+```{r}
+round(3.1415, 2)
+args(round)
+```
+
+```{r}
+# 数字の桁数を揃える
+pi
+
+format(pi, nsmall = 8) # 少数点以下8で揃える
+format(pi, digits = 2) # 数字2桁以下を切り捨てる
+
+# 0埋め（zero-padding）
+formatC(5:12, width = 2, flag = "0")
+```
+
+
+------------------------------------------------------------------------
+
+連続な数を生成する関数
+
+```{r}
+seq(1, 10, length = 5)  #1〜10を5分割で
+seq(1, 10, by = 2)  #1から2ずつ増やして10まで
+seq(as.Date("2016-01-01"), as.Date("2016-01-05"), by = "day")  # 日付も生成できる
+rep(1:3, times = 2) # (1, 2, 3)を2回
+rep(1:3, length = 5) #(1, 2, 3)を5個になるまで繰り返す
+rep(1:3, each = 3) #(1, 2, 3)の要素を3個ずつ
+replicate(10, 1+1) ## replicateはコマンドを複数回実行して結果をベクトルとして保存
+```
+
+------------------------------------------------------------------------
+
+無作為標本抽出のための関数
+
+```{r}
+sample(x = 1:6, size = 4)  # ベクトルxからsize個の要素を取り出す
+sample(x = 1:6, size = 4, replace = TRUE)  # replace = TRUEは取り出した要素を元に戻す（要素の重複が許される）
+x <- rnorm(100, mean = 0, sd = 1) # 平均0, 標準偏差1の正規分布からランダムに値を100個抽出
+```
+
+割合を指定して無作為抽出するには`sample_frac()`を使う。ただし入力はデータフレーム。
+```{r}
+sample_frac(data.frame(x = 1:20), size = 0.2)  # 1〜20から20%の要素を取り出す
+```
+
+### オブジェクト
+
+Rではオブジェクトの中にデータを格納して保存することができる。オブジェクトを作るには名前を選び、
+代入演算子 `<-`を使用する。 使用中のオブジェクトはEnvironmental
+paneに表示される。同じ名前のオブジェクトは上書きされる。
+
+```{r}
+a <- 1 # RStudioではOption + (-)キーが代入演算子のショートカット
+3 -> b # 向きが逆でも大丈夫
+a
+b
+ls() # すでに使用しているオブジェクト名がわかる
+assign("C", 7, envir = globalenv()) # assign関数は代入演算子 -> と同じ、ただし環境を指定できる
+```
+
+------------------------------------------------------------------------
+
+代入操作をカッコで括ると代入とコンソールでの表示を同時に行う。
+
+```{r}
+(c <- 1 + 3)
+```
+
+### データ型
+
+Rのオブジェクトにはbasic type, mode, class,の3つの型がある：
+
+-   basic typeはデータを保存できるオブジェクトの型であり、vector, list,
+    function, language, expression, environment等がある。 basic
+    typeを調べるには関数`typeof()`を使用する。`typeof()`はvector
+    objectに対して使用するとmode型を返す。
+-   modeはオブジェクトに格納された要素に対する型であり、logical,
+    numeric, complex, character,
+    rawがある。numericはさらにdoubleとintegerに分かれる。
+    modeを調べたり、変更するには関数`mode()`を使用する。
+-   classはオブジェクトの属性（attributes）に対する型であり、matrix,
+    array, factor, data.frame等がある。
+    classが定義されていない場合は、basic typeやmodeの型を継承する。
+    classを調べたり、変更するには関数`class()`を使用する。
+
+### ベクトル
+
+Rでは基本的にデータをベクトル単位で扱う。データを`c()`で囲むとベクトルオブジェクトになる。ベクトルの要素単位で計算を実行する。
+
+```{r}
+v1 <- c(8,7,2,5,1,3)
+v2 <- c(1:6)
+v1
+v2
+v1 - 2
+v1 / 2
+v1 - v2
+v1 * v2
+```
+
+------------------------------------------------------------------------
+
+ベクトルは1つの同じ型のデータしか格納できない。
+
+```{r}
+int <- c(1L, 5L)  # 数字の後にLを付けると整数integerになる
+text <- c("ace", "hearts")
+int
+typeof(int)
+text
+typeof(text)
+```
+
+### 行列
+
+行列は数学の行列とほぼ同じ、行と列からなる2次元の数値の配列。
+
+```{r}
+die <- 1:6
+m <- matrix(die, nrow = 2) ## 行列を作成、次元属性が付与される
+m
+m <- matrix(die, nrow = 2, byrow = T)
+m
+dimnames(m) <- list(c("r1","r2"), c("c1","c2","c3")) ## dimnames属性で行列の行と列に名前をつけることもできる
+m
+```
+
+### 配列
+
+配列（array）は行列の拡張版であり、行列は配列の特殊な形。\
+配列は同じサイズの行列を数枚重ねたものであり、行と列以外に「層」を持つ。
+
+#### 数列から直接、配列を作成
+
+```{r}
+ar <- array(c(11:14, 21:24, 31:34), dim = c(2,2,3))  ## array関数はn次元配列を作成, dim属性を指定する
+ar
+```
+
+#### 行列を重ねて配列を作成
+
+3行4列の行列を4層重ねて配列を作成。
+
+```{r}
+Mat1 <- matrix(sample(1:12, 12, replace = TRUE), byrow = TRUE, nrow = 3)
+Mat2 <- matrix(sample(1:12, 12, replace = TRUE), byrow = TRUE, nrow = 3)
+Mat3 <- matrix(sample(1:12, 12, replace = TRUE), byrow = TRUE, nrow = 3)
+Mat4 <- matrix(sample(1:12, 12, replace = TRUE), byrow = TRUE, nrow = 3)
+Array1 <- array(c(Mat1, Mat2, Mat3, Mat4), dim = c(3, 4, 4))
+class(Array1)
+Array1
+```
+
+------------------------------------------------------------------------
+
+配列名[行番号, 列番号, 層番号]で要素を指定。
+
+```{r}
+Array1[3, 1, 2]  # 2番目の行列の3行1列目の要素を抽出
+Array1[ , , 3]  # 3番目の行列を抽出
+Array1[1:2, 1:2, ]  # 各層から1-2行目と1-2列目の要素からなる2×2行列を抽出
+Array1[2, , ]  # 全ての行列の2行目を抽出、結果は行列になることに注意
+```
+
+### リスト
+
+リストは任意のRオブジェクトを1次元のグループにまとめる。
+
+```{r}
+list1 <- list(100:130, "R", list(T, F)) 
+names(list1) <- c("sequence", "character", "logical")  ##  namesで名前属性をつけることができる
+list1
+str(list1)  # まとめているオブジェクトの型はstr()関数で見ることができる
+list1[1] # 番号で要素を選択、リスト形式で返される
+list_len3 <- vector("list", length = 3)  # vector()で任意の長さのリストを作成できる
+```
+
+### データフレーム
+
+データフレームはリストの2次元バージョンであり、R版のExcelスプレッドシート。データフレームはベクトルをまとめて2次元の表にし、個々のベクトルは列になる。
+それぞれのベクトルは異なる型のデータを格納できるが、同じ長さにする必要がある。言い換えると**データフレームとは長さの等しいベクトルの名前付きリスト**。データ分析のためには最も便利なストレージ構造。
+
+```{r}
+df <- data.frame(face=c("ace","two","six"), suit=c("clubs","hearts","diamonds"),  # names, class, row.names属性をもつ
+                 value=c(1,2,3), stringsAsFactors = F)
+df
+str(df)
+typeof(df)
+class(df)
+# dput()関数はオブジェクトをテキスト形式で出力する。defaultはコンソール上に出力される。
+dput(df) # 出力結果をコピーしてRオブジェクトに代入すると、元と全く同一のオブジェクトが生成する。
+```
+
+### tibble
+
+tibbleはデータフレームの進化版。データフレームとは異なり、**任意のRオブジェクト（データフレームやグラフを含む）を格納できる**。
+また入力データの型を自動変換しない。tidyverseではtibbleを標準の形式としている。
+古い関数ではtibbleが使えないことがあるのでその場合はデータフレームを使用する。
+
+```{r}
+as_tibble(iris)  # as_tibble()でdataframeからtibbleへ変換できる
+# as.data.frame()でさらにデータフレームに戻す、データフレームは全ての行を表示してしまうので、head()を使用
+head(as.data.frame(as_tibble(iris)))
+```
+
+------------------------------------------------------------------------
+
+tibbleの例、tibbleはdefaultで上から10行までしか表示しない。
+
+```{r}
+library(tidyverse)
+library(nycflights13)
+data("flights")
+flights
+# intは整数を表す
+# dblはdoubleの略で実数を表す
+# chrは文字ベクトルすなわち文字列を表す
+# dttmはdate-times（日付+時刻）の略
+# lglはlogicalの略で、TRUEまたはFALSEからなるベクトルを示す
+# fctはfactorの略で、規定の値のカテゴリ変数をRで扱う時に使用
+# dateは日付を表す
+```
+
+tibbleの列にリストが格納されている場合、その列を特に**リスト列**と呼ぶ。データフレーム形式ではリストは列として扱われ、含まれるベクトルの長さが異なるとエラーになる。tibble形式ではそのような制約は無い。
+
+```{r}
+data.frame(x = list(1:3, 3:5))
+tibble(
+  x = list(1:3, 3:5, 5:10),
+  y = c("1, 2", "3, 4, 5", NA)
+)
+```
+
+------------------------------------------------------------------------
+
+### 要素の選択
+
+#### ベクトルの要素
+
+角括弧`[ ]`内に添え字を記述して指定。添字は正の整数、負の整数、ゼロ、論理値、名前が使用できる。
+
+```{r}
+vec_num <- c(1:30)
+vec_num[7] # 10番目の要素、Rでは1から添え字が始まる
+vec_num[-3] # 3番目の要素以外
+vec_num[5:13] # :で範囲を指定
+vec_num[-(3:10)] # 3〜10番目以外
+vec_num[-3:-10] # こう書いても同じ
+vec_fruits <- c(1, 2, 3)
+names(vec_fruits) <- c("apple", "banana", "orange") # 各要素の名前を付ける
+vec_fruits["banana"] # 名前を指定して要素を抽出
+```
+
+#### データフレーム中の要素
+
+ベクトルと同様、角括弧`[ ]`を使用。カンマで区切られた2つの添え字を記述して指定。
+
+```{r}
+deck <- read.csv("deck.csv", header =T, sep = ",", stringsAsFactors = F) # csvファイルから読み込み、下記参照。
+deck
+deck[1, 2] # 1行2列目の要素を返す
+deck[1, 1:3] # 1行1〜3列、1:3をc(1,2,3)にしても同じ
+deck[c(2, 6:11), 2:3]  # 2行目と6〜11行目、2〜3列
+deck[-(2:40), 1:3] # 2〜40行目以外
+deck[1, ] # スペースで列全体を取り出す
+deck[ , 2] # スペースで行全体を取り出す
+deck[ , "suit"] # オブジェクトが名前を持っているならば名前で指定可能
+deck[16, "face"]
+deck[1:10, 1, drop=F] # 1列だけ抽出する場合、データフレームがほしい場合はdrop =Fとする
+class(deck[1:10, 1]) # 普通はベクトル型になる
+```
+
+------------------------------------------------------------------------
+
+ドル記号`$`はデータフレームやリストから名前の付いている要素をベクトルやデータフレームとして取り出すことができる。
+
+```{r}
+deck$face  # $でデータフレームから列を抽出
+typeof(deck$value)
+list1 <- list(100:130, "R", list(T, F))
+names(list1) <- c("sequence", "character", "logical")  ##  namesで名前属性をつけることができる
+list1$sequence  # ベクトル形式で取り出される
+typeof(list1$sequence)
+typeof(list1[1])  # 要素番号で取り出すとリスト形式になる
+```
+
+**重要：リストの要素に名前が付いていない場合、2重の角括弧で要素を抽出すると、`$`記法と同じくベクトル/データフレーム形式になる**  
+データフレーム形式になると角括弧`[ ]`を使用して、[行, 列]で要素が指定できる
+
+```{r}
+list1[2]
+typeof(list1[2])
+list1[[2]]
+typeof(list1[[2]])
+list1$character
+typeof(list1$character)
+
+deck_list <- list(deck$face, deck$suit, deck)
+deck_list[[3]][1,1,1] # データフレームなので[]で要素が指定できる
+# deck_list[3][1,1,1] # deck_list[3]はリスト形式なのでエラーになる
+```
+
+------------------------------------------------------------------------
+
+`attach()`関数でデータフレームを読み込むと変数名だけで値にアクセスできるようになる。解除するには`detach()`を使う。
+
+```{r}
+df <- data.frame(face=c("ace","two","six"), suit=c("spades","clubs","hearts"),  # names, class, row.names属性をもつ
+                 value=c(1,2,3), stringsAsFactors = F)
+df$suit
+attach(df)
+suit
+detach(df)
+```
+
+------------------------------------------------------------------------
+
+`attach()`と似た関数に`with()`がある。構文は`with(data, expr, ...)`。`with`関数内に限って`attach(data)`した後と同様に`expr`が評価される。
+
+```{r}
+df <- data.frame(face=c("queen","ace","six"), suit=c("diamonds","spades","clubs"),  # names, class, row.names属性をもつ
+                 value=c(1,2,3), stringsAsFactors = F)
+with(df, paste(face, suit, sep = " of "))
+```
+
+#### 値の書き換え
+
+##### 比較演算子
+
+式が真（`TRUE`）か偽（`FALSE`）かを判定するための演算子。式のそれぞれに`TRUE`か`FALSE`を返す。\
+ベクトルを比較する演算子を使った場合、Rは要素ごとに判定する。
+
+```{r}
+1 < 2 # 左辺（LHS）は右辺（RHS）より小さい
+2 <= 2 # LHSはRHSと等しいか小さい
+5 > 6  # LHSはRHSより大きい
+4 >= 5 # LHSはRHSと等しいか大きい
+(2 + 3) == (4 + 1)
+((2 * 3) + 1) != (2 * (3 + 1))
+1 > 0:2
+c(1, 2, 3) == c(3, 2, 1)
+```
+
+------------------------------------------------------------------------
+
+マッチ演算子 `%in%`
+は左側の個々の値が右側のベクトルに含まれているかどうかをテストする。\
+従って左側の要素の個数だけ`TRUE`または`FALSE`を返す。
+
+```{r}
+1 %in% c(3, 4, 5)
+c(1, 2) %in% c(3, 4, 5)
+c(1, 2, 3, 4) %in% c(3, 4, 5)
+```
+
+##### ブール演算子
+
+ブール演算子は複数の論理テストから1つの`TRUE`か`FALSE`を導出する。Rは個々の論理テストを実行してから、ブール演算子を使用して判定する。ベクトルとともに使うと、ブール演算子は要素単位で評価する。
+
+```{r}
+a <- c(1, 2, 3)
+b <- c(1, 2, 3)
+c <- c(1, 2, 4)
+a == b
+b == c
+!(b == c) # 論理テストの反転
+a == b & b == c  # cond1 & cond2, cond1とcond2が両方ともTRUEかどうか
+a == b | b == c  # cond1 & cond2, cond1とcond2のどちらかがTRUEかどうか
+any(a == b, b == c)  # any(cond1, cond2, ...) condの中で1つでもTRUEになっているものがあるか
+all(a == b, b == c)  # all(cond1, cond2,...) 全てのcondがTRUEかどうか
+
+```
+
+------------------------------------------------------------------------
+
+ダブル演算子`&&`や`||`はそれぞれ`&`や`|`と同じように動作するが、ベクトル対応になっておらずスカラーに対して適用され、結果は`TRUE`または`FALSE`。
+
+```{r message=FALSE, warning=FALSE}
+# a == b && b == c
+# a == b || b == c 
+```
+
+##### 論理テストによる要素の抽出と書き換え
+
+ベクトルの要素はTRUE/FALSEの配列で指定できる。
+
+```{r}
+vec_num <- sample(1:6, 6, replace = FALSE)  # 1:6をランダムに6個並べた配列を作る
+vec_num
+vec_num[c(FALSE, TRUE, FALSE, TRUE, TRUE, FALSE)] # 2, 4, 5番目の要素を抽出
+```
+
+------------------------------------------------------------------------
+
+従って論理テストの結果を利用して、要素を抽出することができる。`sum()`関数内でTRUEとFALSEはそれぞれ1と0に置換して計算されるので、条件に当てはまる要素の個数を数えることができる。また代入演算子を使用して値を置換することも可能。
+
+```{r}
+vec_num2 <- sample(1:6, 20, replace = TRUE)  # 1:6をランダムに20個並べた配列を作る
+vec_num2
+(vec_num2 %% 2) == 0  # 要素が2で割り切れる（=偶数）かどうかを判定
+vec_num2[(vec_num2 %% 2) == 0] # 偶数だけを抽出
+vec_num2 %in% c(2, 5) # 要素が2または5かどうかを判定
+sum(vec_num2 %in% c(2, 5)) # 2または5の個数をカウント
+vec_num2[vec_num2 %in% c(2, 5)] # 2または5を抽出
+vec_num2[vec_num2 %in% c(2, 5)] <- 0 # 2または5を0に置換
+vec_num2
+```
+
+------------------------------------------------------------------------
+
+データフレームの場合も同様に論理テストが利用できる。
+
+```{r}
+deck <- read.csv("deck.csv", header =T, sep = ",", stringsAsFactors = F) # csvファイルから読み込み
+head(deck)
+sum(deck$face == "ace")  # aceの個数を数える
+deck$value[deck$face == "queen"]  # queenのポイントを表示
+deck[deck$suit == "spades", ]  # spadesのカードを全て表示
+deck$suit == "hearts" & deck$face == "king"  # ハートのキングを判定する論理テスト
+kingOfHearts <- deck$suit == "hearts" & deck$face == "king" # テストの結果をオブジェクトに格納
+deck[kingOfHearts, ]  # ハートのキングのカードを表示
+facecards <- deck$face %in% c("king", "queen", "jack")  # フェイスカード（キング、クイーン、ジャック）を判定
+deck[facecards, ]
+deck$value[facecards]
+```
+
+------------------------------------------------------------------------
+
+## 関数の作成
+
+コードの塊を3回以上コピー&ペーストする場合、関数化を考えるべき。\
+関数を書くことのメリット\
+\* コードが理解しやすい直感的な名前を関数につけることができる。 \*
+要求が変わっても、複数箇所を変更せずに、1ヶ所のコードを変更するだけで済む\
+\* コピー&ペースト時の間違いをなくすことができる
+
+```{r}
+df <- tibble::tibble(
+  a = rnorm(10),
+  b = rnorm(10),
+  c = rnorm(10),
+  d = rnorm(10)
+)
+
+df$a <- (df$a - min(df$a, na.rm = TRUE)) / 
+  (max(df$a, na.rm = TRUE) - min(df$a, na.rm = TRUE))
+df$b <- (df$b - min(df$b, na.rm = TRUE)) / 
+  (max(df$b, na.rm = TRUE) - min(df$a, na.rm = TRUE))  ## 間違いあり
+df$c <- (df$c - min(df$c, na.rm = TRUE)) / 
+  (max(df$c, na.rm = TRUE) - min(df$c, na.rm = TRUE))
+df$d <- (df$d - min(df$d, na.rm = TRUE)) / 
+  (max(df$d, na.rm = TRUE) - min(df$d, na.rm = TRUE))
+
+(df$a - min(df$a, na.rm = TRUE)) /
+  (max(df$a, na.rm = TRUE) - min(df$a, na.rm = TRUE))
+
+x <- df$a
+(x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+#>  [1] 0.2892677 0.7509271 0.0000000 0.6781686 0.8530656 1.0000000 0.1716402
+#>  [8] 0.6107464 0.6116181 0.6008793
+rng <- range(x, na.rm = TRUE)  ## rangeは最小値と最大値を含んだベクトルを返す
+(x - rng[1]) / (rng[2] - rng[1])  ## rng[1]は最小値、rng[2]は最大値
+```
+
+関数化のステップ:1. 関数に名前をつける, 2. 引数を関数の内側に書く, 3.
+関数直後の`{}`にコードを書く。
+
+```{r}
+rescale01 <- function(x) {  
+rng <- range(x, na.rm = TRUE)  
+(x - rng[1]) / (rng[2] - rng[1])
+}
+rescale01(c(0, 5, 10)) # 他の値で上手くいくか確認
+```
+
+### if文による条件実行
+
+ベクトルの各要素に名前があるかどうかを示す論理ベクトルを返す関数。戻り値を指定しない場合、最後に計算した値を返す。
+
+```{r}
+has_name <- function(x){
+  nms <- names(x)
+  if (is.null(nms)){
+    rep(FALSE, length(x))
+  } else{
+      !is.na(nms) & nms != ""
+    }
+}
+```
+
+`||` (or)や`&&` (and)を使用して複数の論理式を結合できる。\
+`||`は最初にTRUEと評価された要素でTRUEを返し、残りの要素は評価しない。\
+`&&`ではFALSEと評価した最初の要素で、FALSEを返す。\
+if文では`|`や`&`を使用してはいけない、これらは複数値に対するベクトル演算を行う（なので`filter()`で使用する）。\
+論理ベクトルは`any()`や`all()`を使用して、単一値にまとめることができる。\
+等しいかどうかのテスト `==` もベクトル演算なので注意する。
+
+```{r}
+a=c(1,1,1,1,1); b=c(1,1,0,0,1)
+a == b
+identical(a, b)  ## identical は非常に厳格で常に単一のTかFを返し、型強制はしない
+```
+
+### 複合条件
+
+複数のif文をつなげることができる：\
+if (this) {\
+\# do that\
+} else if (that) {\
+\# do something else\
+} else {\
+}\
+switch関数を使用すると、位置や名前に基づいて選択したコードを評価できる。
+
+```{r}
+op <- "1"
+x <- 10
+y <- 20
+ans <- switch(op,
+              "1" = x + y,
+              "2" = x - y,
+              "3" = x * y,
+              "4" = x / y,
+              stop("Only can use 1, 2, 3, and 4"))
+ans
+```
+
+### 関数の引数
+
+一つは計算する**データ**、もう一つは**計算の詳細**を制御。例えば`log()`ではデータが`x`、詳細が対数の底`base`。一般にデータ引数が最初に来る、詳細引数は最後に来て、通常はデフォルト値が存在。
+
+```{r}
+# 正規近似を使って、平均値の信頼区間を計算
+mean_ci <- function(x, conf = 0.95) { ## 0.95がdefaultの値
+  se <- sd(x) / sqrt(length(x))
+  alpha <- 1 - conf
+  mean(x) + se * qnorm(c(alpha / 2, 1 - alpha / 2))
+}
+x <- runif(100)
+mean_ci(x)
+#> [1] 0.4976111 0.6099594
+mean_ci(x, conf = 0.99)
+```
+
+### 値のチェック
+
+重み付き要約統計量を計算する関数
+
+```{r}
+wt_mean <- function(x, w) {
+  sum(x * w) / sum(w)
+}
+wt_var <- function(x, w) {
+  mu <- wt_mean(x, w)
+  sum(w * (x - mu) ^ 2) / sum(w)
+}
+wt_sd <- function(x, w) {
+  sqrt(wt_var(x, w))
+}
+
+wt_mean(1:6, 1:5)  ## xとwのベクトルの長さが異なるとエラーになる
+```
+
+重要な前提条件はチェックして、正しくないとstopと共にエラーを返すようにする
+
+```{r}
+wt_mean <- function(x, w) {
+  if (length(x) != length(w)) {
+    stop("`x` and `w` must be the same length", call. = FALSE)  ## xとwの長さが異なる場合、stopとともにエラーメッセージを返す
+  }
+  sum(w * x) / sum(w)
+}
+```
+
+stopifnot()は各引数がTRUEかどうかを調べ、そうでないと汎用的なエラーメッセージを返す
+
+```{r}
+wt_mean <- function(x, w, na.rm = FALSE) {
+  stopifnot(is.logical(na.rm), length(na.rm) == 1)
+  stopifnot(length(x) == length(w))
+  
+  if (na.rm) {
+    miss <- is.na(x) | is.na(w)
+    x <- x[!miss]
+    w <- w[!miss]
+  }
+  sum(w * x) / sum(w)
+}
+# wt_mean(1:6, 6:1, na.rm = "foo")
+```
+
+### 3ドット
+
+Rの多くの関数では入力する引数の数に制限は無い、例えば`sum`や`str_c`など。
+
+```{r}
+sum(1,2,3,4,5,6,7,8,9,10)
+stringr::str_c("a","b","c","d","e","f","g")
+```
+
+特別な引数「...」は入力引数がいくつでもマッチでき、他の関数に送り出すことができる。
+
+```{r}
+commas <- function(...) stringr::str_c(..., collapse = ", ")
+commas(letters[1:10])
+
+rule <- function(..., pad = "-") {
+  title <- paste0(...)
+  width <- getOption("width") - nchar(title) - 5   ## getOption("width")はコンソール画面の幅
+  cat(title, " ", stringr::str_dup(pad, width), "\n", sep = "")
+}
+rule("Important output")
+```
+
+### 戻り値
+
+関数が返す値は通常は評価の最後の文。return()を使って早く返すように選択できる。考慮するべきは1.
+値を早く返すと関数が読みやすくなるか 2. パイプを使って関数が書けるか。
+明示的return文にするべきは主に次の3つのケース： 1. 入力が空の場合、2.
+複雑なブロックが一つと簡単なブロックが一つある場合、3.
+パイプにできる関数を書く場合
+
+## イテレーション
+
+重複をなくすツールの1つが関数化で、繰り返し使われるコードパターンを独立させて、たやすく再利用や更新できるようにする。もう１つのツールがイテレーション（iteration）で、複数の入力（異なる列やデーセット）に対して同じことを行う。イテレーションには命令型（for
+loop, while loop）と関数型がある。
+
+### forループ
+
+forループの3つの要素:\
+**出力**:
+ループを開始する前に、出力用のスペースを確保しておく必要がある。指定長の空ベクトルを作るには`vector()`を使う。\
+**シーケンス**:
+何でループするのかを決める。`seq_along()`は1からベクトルの長さ（行数）までの数列を生成、ベクトルの長さが0の時にもうまく処理してくれるので`1:length()`よりも安全。\
+**本体**: 実際の仕事をするコード。
+
+```{r}
+df <- tibble(
+  a = rnorm(10),
+  b = rnorm(10),
+  c = rnorm(10),
+  d = rnorm(10)
+)
+# for loopで計算
+output <- vector("double", ncol(df))  ## 1. 出力、結果を出力するための指定長の空ベクトルを作っておく
+for (i in seq_along(df)){  ## 2. シーケンス
+  output[[i]] <- median(df[[i]])  ## 3. 本体
+}
+output
+```
+
+[[]]は単一要素を扱うことが明示されるので、for
+loopの中では[[]]を使用する（例えアトミックベクトルでも[[]]の使用を推奨）。
+
+------------------------------------------------------------------------
+
+### forループのバリエーション
+
+forループには以下の4つのバリエーションがある：
+
+-   新たなオブジェクトを作らず、既存オブジェクトを変更\
+-   添字ではなく、名前や値についてループする\
+-   長さが不明な出力を扱う\
+-   長さの不明なシーケンスを扱う\  
+
+#### 既存オブジェクトの変更
+
+出力は既にある、すなわち入力と同じ。データフレームを列のリストと考え、列をiteration。
+
+```{r}
+df <- tibble(
+  a = rnorm(10),
+  b = rnorm(10),
+  c = rnorm(10),
+  d = rnorm(10)
+)
+# 関数で解く場合
+rescale01 <- function(x) {
+  rng <- range(x, na.rm = TRUE)
+  (x - rng[1]) / (rng[2] - rng[1])
+}
+
+# for loopで解く場合
+for (i in seq_along(df)){ 
+  df[[i]] <- rescale01(df[[i]])  ## 本体：rescale01()する
+}
+```
+
+#### ループパターン
+
+ベクトルでループするには基本的に3つの方法がある：
+
+-   添字でループ：最も一般的な方法、`(i in seq_along(xs))`で数値の添字を使って値xs[[i]]を抽出。`names(xs)[[i]]`で名前も取得できる。\
+-   要素を使ってループ：
+    `for (x in xs)`、出力を効率的に格納するのは難しい。グラフを書いたりするなど、副作用だけを使う際に有効。\
+-   名前を使ってループ：`(nm in names(xs))`、`xs[[nm]]`で値にアクセスできる名前を指定。名前付きの出力を作るなら、結果ベクトルに名前を付けるのを忘れないようにする。
+
+```{r}
+#| eval: false
+results <- vector("list", length(x))
+names(results) <- names(x)
+```
+
+------------------------------------------------------------------------
+
+#### 出力長不明
+
+出力の長さがどれだけになるかわからない場合もある。例：長さがランダムなベクトルをシミュレーションしたい。
+
+```{r}
+means <- c(0, 1, 2)
+output <- double()
+for (i in seq_along(means)) {
+  n <- sample(100, 1)  ## 1〜100の間の整数を一つランダムに選ぶ
+#ベクトルoutputの最後にrnorm(..)で選んだn個の数字を追加して、ベクトルを長くしていく
+  output <- c(output, rnorm(n, means[[i]]))  
+}
+str(output)
+```
+
+これでは毎回Rが前のデータを全てコピーしないといけないので、あまり効率的ではない。
+より良い解法では、結果をリストに格納し、ループが終わってから一つのベクトルにまとめる。
+
+```{r}
+out <- vector("list", length(means))  ## 長さが3のリストを作成できる
+for (i in seq_along(means)) {
+  n <- sample(100, 1) 
+  out[[i]] <- rnorm(n, means[[i]])  ## リストのi番目の要素に格納
+}
+str(out)
+str(unlist(out))  ## ベクトルのリストを1つのベクトルにする、purrr::flatten_dbl()を使う方がベター
+```
+
+他の例:
+
+-   長い文字列を生成する場合、出力をベクトルに保存しておき、`paste(output, collapse="")`でベクトルの要素を連結して文字列にする。\
+-   大きなデータフレームを生成する場合、繰り返しのたびにrbind()で連結するのではなく、出力をリストに保存し、`dplyr::bind_rows(output)`を使って連結して１つのデータフレームにまとめる。
+
+------------------------------------------------------------------------
+
+#### シーケンス長不明
+
+何回繰り返すか不明の場合はwhileを使用。例えば表が3回連続出るまでに何回硬貨投げを試行するのかを数えるwhileループ。
+
+```{r}
+flip <- function() sample(c("T", "H"), 1)
+flips <- 0
+nheads <- 0
+
+while (nheads < 3) {
+  if (flip() == "H") {
+    nheads <- nheads + 1
+  } else {
+    nheads <- 0
+  }
+  flips <- flips + 1
+}
+flips
+```
+
+#### forループと関数型
+
+Rは関数型プログラミング言語であり、他の言語ほどforループが重要とは考えない。forループは関数でラップ（wrap）できる。
+
+```{r}
+df <- tibble(
+  a = rnorm(10),
+  b = rnorm(10),
+  c = rnorm(10),
+  d = rnorm(10)
+)
+# for loopで各列の平均を計算
+output <- vector("double", length(df))
+for (i in seq_along(df)) {
+  output[[i]] <- mean(df[[i]])
+}
+output
+```
+
+平均値の計算を関数化。中央値と標準偏差の計算も同様に関数化。
+
+```{r}
+col_mean <- function(df) {   ## 平均の計算を関数化
+  output <- vector("double", length(df))
+  for (i in seq_along(df)) {
+    output[i] <- mean(df[[i]])
+  }
+  output           # 返り値
+  # return(output) # こう書いても同じ
+}
+col_mean(df)
+
+col_median <- function(df) { ## 中央値の計算を関数化
+  output <- vector("double", length(df))
+  for (i in seq_along(df)) {
+    output[i] <- median(df[[i]])
+  }
+  output
+}
+col_median(df)
+
+col_sd <- function(df) {  #### 標準偏差の計算を関数化
+  output <- vector("double", length(df))
+  for (i in seq_along(df)) {
+    output[i] <- sd(df[[i]])
+  }
+  output
+}
+col_sd(df)
+```
+
+平均値、中央値、標準偏差の関数を引数として渡せば、より一般的した関数を定義できる。関数を引数にする場合は()を付けない。
+
+```{r}
+# 関数を別の関数に引き渡す
+col_summary <- function(df, fun) {  ## 引数funを追加、mean, median, sd等を入力すれば良い
+  out <- vector("double", length(df))
+  for (i in seq_along(df)) {
+    out[i] <- fun(df[[i]])
+  }
+  out
+}
+col_summary(df, median)
+col_summary(df, mean)
+```
+
+------------------------------------------------------------------------
+
+### マップ関数
+
+purrrパッケージのマップ関数とは第1引数のベクトルの各要素について何かを行い、結果を保存するための関数。どの関数もベクトルを入力し、各要素に関数を適用し、入力と同じ長さ（同じ名前）の新たなベクトルを返す。第2引数.fは式、文字ベクトル、または整数ベクトルでも良い。3ドット「...」で.fが呼ばれる際の引数を渡す。文字や整数の場合はその位置の要素が抽出される（後述）：
+
+-   `map()`: makes a list., lapplyと同様
+-   `map_lgl()`: makes a logical vector.
+-   `map_int()`: makes an integer vector.
+-   `map_dbl()`: makes a double vector.
+-   `map_chr()`: makes a character vector.
+
+```{r}
+map(df, mean) # リストを返す、各列の名前も保持される
+map_dbl(df, mean)  # ベクトルを返す
+map_chr(df, mean)  # 要素が文字型のベクトルを返す
+map_dbl(df, median)
+map_dbl(df, sd)
+df %>% map_dbl(max) # パイプ演算子も使える
+```
+
+#### ショートカット
+
+mtcarsデータセットをシリンダーの値で3つに分け、同じ線形モデルを適用したい。
+
+```{r}
+models <- mtcars %>% 
+  split(.$cyl) %>% 
+  map(function(df) lm(mpg ~ wt, data = df))  ## 匿名関数を定義して使用
+```
+
+匿名関数の代わりに、one-sided
+fomulaオブジェクト（\~）を使用して次のように書ける。ここでピリオドは現在のリスト要素を参照する代名詞のようなもの。
+
+```{r}
+models <- mtcars %>% 
+  split(.$cyl) %>% 
+  map(~ lm(mpg ~ wt, data = .)) 
+```
+
+R\^2のような要約統計量を取得するには`summary()`を実行してから、r.squaredという成分を抽出する。
+
+```{r}
+models %>%
+  map(summary) %>%   ## summaryを実行してから、リストに格納されているR2値成分を抽出する
+  map_dbl(~ .$r.squared)
+
+# 文字でも抽出できる、こちらの方が一般的
+models %>% 
+  map(summary) %>% 
+  map_dbl("r.squared")
+```
+
+整数を使ってその位置の要素を抽出することもできる。
+
+```{r}
+x <- list(list(1, 2, 3), list(4, 5, 6), list(7, 8, 9))
+x %>% map_dbl(2)
+```
+
+#### apply系関数とpurrr::map関数の類似性
+
+-   base系の`lapply()`は基本的に`map()`と同じ。`map()`の方がpurrrの他の関数との一貫性があり、.fのショートカットを使う。\
+-   `sapply()`は`lapply()`のwrapperで、出力を自動的に簡素化。どんな出力になるかわからないので自作関数に使うには問題がある。\
+-   `vapply()`は型を定義する引数を追加するので、`sapply()`の安全版。入力が面倒になる。`vapply(df, is.numeric, logical(1))`は`map_lgl(df, is.numeric)`と等価。map関数はベクトルしか作成できないのに対し、`vapply()`は行列も作成できる。
+
+------------------------------------------------------------------------
+
+map関数の練習問題：
+
+```{r}
+# a. mtcarsの各列の平均を計算する
+data("mtcars")
+mtcars %>% map_dbl(mean)
+```
+
+```{r}
+# b. nycflights13::flightsの各列の型を決定する
+data("flights")
+flights %>% map_chr(typeof)
+```
+
+```{r}
+# c. irisの各列の一意な値の個数を計算する
+data("iris")
+iris %>% map(unique) %>% map(length)
+# 以下のようにより簡潔に書ける
+iris %>% map_int(n_distinct)
+```
+
+```{r}
+# d. mu = -10, 0, 10, 100のそれぞれについて10個の正規乱数を生成する
+map(c(-10,0,10,100), rnorm, n = 10)  ## rnorm()の引数は後ろにつける
+# 匿名関数を使用する場合
+map(c(-10,0,10,100), function(mu) rnorm(n = 10, mean = mu)) 
+# one-sided formulaオブジェクトを使用する場合
+map(c(-10, 0, 10, 100), ~ rnorm(n = 10, mean = .))
+```
+
+```{r}
+# 3. map(1:5, runif)は何をするか、それはなぜか
+map(1:5, runif)
+# 以下と等価。
+map(seq(1:5), runif)
+```
+
+```{r}
+# 4. map(-2:2, rnorm, n = 5)は何をするか、map_dbl(-2:2, rnorm, n = 5)はどうなるか
+map(-2:2, rnorm, n = 5)
+# map_dbl(-2:2, rnorm, n = 5) # エラーになる
+```
+
+------------------------------------------------------------------------
+
+#### 失敗の処理
+
+関数`safely()`は関数を引数に取り、修正版を返す。この場合、修正された関数はエラーを投げない。代わりに次の2つのオブジェクトをリストにまとめて返す：\
+result: 元の結果。エラーがあればNULL。\
+error: エラーオブジェクト。処理が成功すればNULL。\
+関数が成功すれば、要素resultには結果が入り、要素errorはNULLになる。
+
+```{r}
+safe_log <- safely(log)  ## safelyはresultとerrorを1つのリストにまとめて返す
+str(safe_log(10))
+str(safe_log("a"))
+```
+
+`safely()`はmapで使うことができる。list(result,
+error)を要素とするリストが得られる。
+
+```{r}
+x <- list(1, 10, "a")
+y <- x %>% map(safely(log))
+str(y)
+```
+
+purrr::list_transpose()を得られたリストに対して使うと、resultとerror、それぞれのリスト（list(result),
+list(error)）に変換される。list_transpose()は行列転置関数t()のlist版。
+例えば、pair of lists \<=\> list of pairs。
+data.frameをlistとして渡すとlist of rowsが得られる。
+
+```{r}
+y <- y %>% list_transpose()
+str(y)
+```
+
+possibly()はsafely()同様、常に成功する、エラーの際default値を返す。quietly()はエラーを捕捉せずに出力、メッセージ、警告を補足する。
+
+```{r}
+x <- list(1, 10, "a")
+x %>% map_dbl(possibly(log, NA_real_))
+x <- list(1, -1)
+x %>% map(quietly(log)) %>% str() 
+```
+
+------------------------------------------------------------------------
+
+#### 複数引数へのマップ
+
+単一の入力ではなく、複数の関連する入力について並列にイテレーションする場合、関数`map2()`と`pmap()`を使う。以下は平均値の異なる正規乱数を複数シミュレーションする例。
+
+```{r}
+# 平均値の異なる正規乱数を複数シミュレーションする
+mu <- list(5, 10, -3) # 試す平均値のリスト
+# mu <- c(5, 10, -3)  ## ベクトルにしても結果は同じ
+mu %>% 
+  map(rnorm, n = 5) %>% 
+  str()
+```
+
+平均値に加えて標準偏差sigmaも変化させる場合。平均と標準偏差のベクトルに添え字を当ててiterationするやり方。
+
+```{r}
+sigma <- list(1, 5, 10)   
+# sigma <- ｃ(1, 5, 10)   
+seq_along(mu) %>% 
+  map(~ rnorm(n = 5, mean = mu[[.]], sd = sigma[[.]])) %>% # n =, mean = , sd =, は省略可
+  str()
+```
+
+引数を2つ取れる、map2()で2つのベクトルを並列に処理。コードの意図がわかりやすくなる。**変化する引数は関数の前**に、**変化しない引数は関数の後**に書くことに注意。
+
+```{r}
+map2(mu, sigma, rnorm, n = 5) %>% 
+  str()
+```
+
+------------------------------------------------------------------------
+
+map3(),
+map4(),..等も考えられるが、purrrには代わりに引数のリストを引数として取るpmap()が用意されている。以下は平均値、標準偏差、サンプルサイズを変化させる場合。
+
+```{r}
+mu <- list(5, 10, -3) # 試す平均値のリスト
+sigma <- list(1, 5, 10)  
+n <- list(1, 3, 5)
+args1 <- list(n, mu, sigma)
+args1 %>%
+  pmap(rnorm) %>% 
+  str()
+```
+
+リストの要素に名前を付けないと、`pmap()`は位置を代わりに使うので、引数に名前を付けた方が良い。
+
+```{r}
+args2 <- list(mean = mu, sd = sigma, n = n)  ## 引数に名前を付けた方がわかりやすい
+args2 %>% 
+  pmap(rnorm) %>% 
+  str()
+```
+
+引数は全て同じ長さなので、データフレームに格納しておくとより便利でわかりやすい。
+
+```{r}
+params <- tribble(
+  ~mean, ~sd, ~n,
+  5,     1,  1,
+  10,     5,  3,
+  -3,    10,  5
+)
+params %>% 
+  pmap(rnorm)
+```
+
+#### 様々な関数を呼び出す
+
+もう一段階複雑にして、関数への引数だけでなく、関数も変化させるにはinvoke_map()を使用する。第1引数は関数のリスト、第2引数は関数ごとに異なる引数を指定するリストのリスト、第3引数以降は全関数に渡される。
+
+```{r}
+f <- c("runif", "rnorm", "rpois")
+param <- list(
+  list(min = -1, max = 1), 
+  list(sd = 5), 
+  list(lambda = 10)
+)
+invoke_map(f, param, n = 5) %>% str()
+```
+
+パラメータと計算結果を1つのデータフレームにまとめることもできる。
+
+```{r}
+sim <- tribble(   ## データフレームに関数と引数のリストを格納
+  ~f,      ~params,
+  "runif", list(min = -1, max = 1),
+  "rnorm", list(sd = 5),
+  "rpois", list(lambda = 10)
+)
+sim %>% 
+  mutate(sim = invoke_map(f, params, n = 10))  ## シミュレーション結果を列simに格納
+```
+
+------------------------------------------------------------------------
+
+#### ウォーク
+
+ウォークは関数をその戻り値ではなく、副作用のために呼び出したい際にmapの代わりに使う。関数を適用しつつ**第一引数を暗黙的に返す**。グラフのリストとファイル名のベクトルがあると、`pwalk()`を使って、各ファイルをディスクの対応する場所に保存できる。
+
+```{r}
+plots <- mtcars %>% 
+  split(.$cyl) %>% 
+  map(~ ggplot(., aes(mpg, wt)) + geom_point())
+paths <- stringr::str_c(names(plots), ".pdf")
+
+pwalk(list(paths, plots), ggsave, path = tempdir())
+```
+
+#### forループの他のパターン
+
+purrrにはforループの他のパターンを抽象化する関数も用意されている。\
+TRUEかFALSEを返す述語関数とともに機能する関数、keep()とdiscard()は述語がTRUEまたはFALSEとなる要素をそれぞれ返す。
+
+```{r}
+iris %>% 
+  keep(is.factor) %>% 
+  str()
+
+iris %>% 
+  discard(is.factor) %>% 
+  str()
+```
+
+some()とevery()は述語が要素のいずれか、またはすべてでTRUEとなるかどうかを判定する。
+
+```{r}
+x <- list(1:5, letters, list(10))
+x %>% 
+  some(is_character)
+
+x %>% 
+  every(is_vector)
+```
+
+detect()は述語が真となる最初の要素を返す、detect_index()はその位置を返す。
+
+```{r}
+x <- sample(10)
+x
+x %>% 
+  detect(~ . > 5)
+x %>% 
+  detect_index(~ . > 5)
+```
+
+head_while()とtail_while()は述語がTRUEである先頭または末尾からの要素列を返す。
+
+```{r}
+x %>% 
+  head_while(~ . > 5)
+
+x %>% 
+  tail_while(~ . > 5)
+```
+
+#### reduceとaccumulate
+
+reduce()は「2項」関数（2つの主入力がある）をとり、単一要素が残るまでリストに繰り返しその関数を適用する。例えばデータフレームのリストに対して、要素を結合して単一データフレームにする場合に使用。
+
+```{r}
+dfs <- list(
+  age = tibble(name = "John", age = 30),
+  sex = tibble(name = c("John", "Mary"), sex = c("M", "F")),
+  trt = tibble(name = "Mary", treatment = "A")
+)
+dfs %>% reduce(full_join)
+```
+
+あるいはベクトルのリストがあり、共通部分を求めたい場合。
+
+```{r}
+vs <- list(
+  c(1, 3, 5, 6, 10),
+  c(1, 2, 3, 7, 8, 10),
+  c(1, 2, 3, 4, 8, 9, 10)
+)
+vs %>% reduce(intersect)  ## intersect()は両方に含まれている要素を抽出する
+```
+
+accumulate()もreduce()と同様に機能するが、中間結果を全て保存する。累積和を求めることができる。
+
+```{r}
+x <- sample(10)
+x
+x %>% accumulate(`+`)  ## accumulateは中間結果を全て保存する
+```
+
+------------------------------------------------------------------------
+
+## 文字列の処理
+
+Rにおける文字列の操作と**正規表現（regular
+expression）**。`stringr`パッケージを使用する。
+
+```{r}
+library(tidyverse)
+library(stringr)
+data("words")
+```
+
+**特殊文字**はバックスラッシュ`\`を使ってエスケープする。文字列の中身そのものを表示させるには`writeLines()`。
+
+```{r}
+double_quote <- "\""  ## バックスラッシュでエスケープ
+double_quote
+writeLines(double_quote)  ## 文字列の中身そのものを調べるときはwriteLines
+```
+
+```{r}
+return <- "a \nb "  ## 改行
+tab <- "a \t b"  ## タブ
+mu <- "\u00b5"
+writeLines(return)
+writeLines(tab)
+writeLines(mu)
+?"'"  ## 特殊文字一覧
+```
+
+### stringr関数
+
+文字列を操作するstringrの関数は全て「str\_」で始まるので、RStudioの自動補完機能で一覧が表示される。
+
+```{r}
+str_length(c("a", "R for data science", NA))  ## 文字列の長さ
+str_c("x", "y") ## 文字列の連結
+str_c("x", "y", sep = ", " ) ## sep引数を使って区切り文字を制御
+```
+
+```{r}
+x <- c("abc", NA)
+str_c("|-", x, "-|")  ## NAはそのまま
+## "NA"と出力するにはstr_replace_naを使用
+str_c("|-", str_replace_na(x), "-|") 
+```
+
+`str_c()`はベクトル化関数で、要素の少ないベクトルを最長ベクトルの要素数に自動的にリサイクルして合わせる。
+
+```{r}
+str_c("prefix-", c("a", "b", "c"), "-suffix") 
+```
+
+引数`collapse = ""`とすると、文字列のベクトルをまとめて一つの文字列にする。
+
+```{r}
+str_c(c("x", "y", "z"), "a", collapse = "")
+str_c(c("x", "y", "z"), "a")
+str_c(c("x", "y", "z"), collapse = "")
+```
+
+#### 文字列の一部抽出
+
+`str_sub()`は文字列が短すぎてもエラーにならず、できるだけ部分文字列を取り出す。
+
+```{r}
+x <- c("Apple", "Banana", "Pear")
+str_sub(x, 1, 3)  ## 1〜3文字目を取り出す
+str_sub(x, -3, -1)  ## 負数は末尾からの位置
+# str_sub()の代入形式を使って、文字列を変更することもできる
+str_sub(x ,1, 1) <- str_to_lower(str_sub(x, 1, 1))
+x
+```
+
+後述の正規表現と`str_extract()`を使用することもできる。
+```{r}
+x <- c("Apple", "Banana", "Pear")
+str_extract(x, "^.{2}") # 先頭の２文字を取り出す
+str_extract(x, ".{3}$") # 末尾の３文字を取り出す
+```
+------------------------------------------------------------------------
+
+### 正規表現
+
+#### 基本マッチ
+
+`str_view()`は文字列と正規表現を取り、マッチがどうなるかを示す。最も単純なパターンマッチは厳密なマッチ。改行以外のどんな文字ともマッチする「.」。
+
+```{r}
+x <- c("apple", "banana", "pear")
+str_view(x, "an") ## 厳密なマッチ
+str_view(x, ".a.")  ## .は任意の一文字
+```
+
+------------------------------------------------------------------------
+
+正規表現の「.」ではなく、文字ピリオド「.」をマッチさせるには、エスケープして`「\.」`とする。ただしR上では文字列のエスケープと認識されてしまい、`「\.」`のような文字列エスケープは無いためエラーとなる。この問題を回避するため正規表現の`\.`を作るには、R上ではバックスラッシュを2つ重ねて`「\\.」`とする。参考：<https://opur.club/textbook/2018-5-2/>,
+<https://www.jaysong.net/RBook/string.html#%E6%AD%A3%E8%A6%8F%E8%A1%A8%E7%8F%BE>
+
+```{r}
+# To create the regular expression, we need \\
+dot <- "\\."
+# But the expression itself only contains one:
+writeLines(dot)
+#> \.
+# And this tells R to look for an explicit .
+str_view(c("abc", "a.c", "bef"), "a\\.c")
+```
+
+文字通りのバックスラッシュとマッチさせるには、`「\\\\」`と、4つ重ねる必要がある。
+
+```{r}
+x <- "a\\b"
+writeLines(x)
+#> a\b
+str_view(x, "\\\\")
+```
+
+------------------------------------------------------------------------
+
+| マッチ                       | 正規表現 | Rでの表現 |
+|:-----------------------------|:---------|:----------|
+| 任意の数字                   | `\d`     | `\\d`     |
+| 空白文字（空白, タブ, 改行） | `\s`     | `\\s`     |
+| 記号を除く文字               | `\w`     | `\\w`     |
+| 単語の境界                   | `\b`     | `\\b`     |
+| ピリオド「`.`」              | `\.`     | `\\.`     |
+| バックスラッシュ「`\`」      | `\\`     | `\\\\`    |
+
+------------------------------------------------------------------------
+
+#### アンカー
+
+-   \^: 文字列の先頭とマッチする\
+-   \$: 文字列の末尾とマッチする\
+
+```{r}
+x <- c("apple", "banana", "pear")
+str_view(x, "^a")  
+str_view(x, "a$") 
+
+x <- c("apple pie", "apple", "apple cake")
+str_view(x, "apple")
+## 文字列全体とだけマッチするには^と$の両方でアンカーする
+str_view(x, "^apple$")  
+```
+
+#### 文字のクラスと候補
+
+| マッチ                    | 正規表現 |
+|:--------------------------|:---------|
+| a, b, cのどれか1文字         | `[abc]`  |
+| a,b,c以外ならどの文字とも | `[^abc]` |
+| この並びで現れる          | `(abc)`  |
+
+```{r}
+# Look for a literal character that normally has special meaning in a regex
+str_view(c("abc", "a.c", "a*c", "a c"), "a[.]c")
+str_view(c("abc", "a.c", "a*c", "a c"), ".[*]c")
+str_view(c("abc", "a.c", "a*c", "a c"), "a[ ]")
+# 複数の候補パターンから選ぶには候補指定|を使用する
+str_view(c("grey", "gray"), "gr(e|a)y") 
+```
+
+------------------------------------------------------------------------
+
+#### 繰り返し
+
+| 意味             | 正規表現 |
+|:-----------------|:---------|
+| 0か1             | `?`      |
+| 1以上            | `+`      |
+| 0以上            | `*`      |
+| n個              | `{n}`    |
+| n個以上          | `{n,}`   |
+| n個以下          | `{,n}`   |
+| m個以上、n個以下 | `{m,n}`  |
+
+```{r}
+x <- "1888 is the longest year in Roman numerals: MDCCCLXXXVIII"
+str_view(x, "CC?")
+str_view(x, "CC+")
+str_view(x, 'C[LX]+')　　## [LX]はLXのどれかとマッチする
+str_view(x, "C{2}")  ## 2回繰り返す
+str_view(x, "C{2,}")  ## 2回以上繰り返す
+str_view(x, "C{2,3}")  ## 2〜3回繰り返す
+str_view(x, 'C{2,3}?')  ## defaultでは最長文字列と最長マッチする、?を後ろにつけて最短文字列とマッチさせることもできる
+str_view(x, 'C[LX]+?')
+```
+
+#### 正規表現の例  
+
+| 意味             | 正規表現 |
+|:-----------------|:---------|
+| 先頭がA〜Fで始まる        | `^[A-F]`|
+| 末尾が数字の1〜9で終わる | `[1-9]$`|
+| 何らかの文字が0回以上出現 | `.*`|
+|3桁の数字|`[0-9]{3}`|
+|3桁-3桁-4桁の電話番号|`^[0-9]{3}-[0-9]{3}-[0-9]{4}$`|
+------------------------------------------------------------------------
+
+#### グループ化と後方参照
+
+`()`でグループ化すると、キャプチャも同時に行われる。キャプチャとは、`()`内の文字列を記憶し、後で参照できるようにする機能。記憶した文字列は、後で「`\1`」,
+「`\2`」,
+「`\3`」,...のように指定することで利用することができる。**正規表現内の`()`の数だけグループができる**。以下の`words`は980個の英単語のリスト。
+
+```{r}
+## ()は番号付きのcapturing groupを作成、\1, \2によりそれらを後方参照できる
+str_view(fruit, "(..)\\1", match = TRUE)
+str_view(fruit, "(.)(.)\\2\\1", match = TRUE)
+str_view(words, "(.).\\1.\\1", match = TRUE)
+```
+
+#### マッチの可否
+
+文字ベクトルがパターンにマッチするかどうかの確認は、`str_detect()`を使う。
+
+```{r}
+x <- c("apple", "banana", "pear")
+str_detect(x, "e")  ## 入力と同じ長さの論理ベクトルを返す
+```
+
+数値表現ではTRUEは1,
+FALSEは0としてカウントされる。`sum()`と`mean()`でそれぞれ、個数と割合がわかる。
+
+------------------------------------------------------------------------  
+
+`str_detect()`と`grepl()`はほぼ同じ、文法が異なる。
+```{r}
+x <- c("apple", "banana", "pear")
+grepl("e", x)
+```
+
+------------------------------------------------------------------------   
+
+```{r}
+# 一般単語でtで始まる単語の個数
+sum(str_detect(words, "^t"))
+# 一般単語で母音で終わる単語の割合
+# [aeiou]はa, e, i, o, uのいずれか、$は末尾を指定するアンカー
+mean(str_detect(words, "[aeiou]$"))  
+sum(str_detect(words, "[aeiou]$"))
+```
+
+------------------------------------------------------------------------
+
+母音を含まない単語を探し出す２つの方法。前者の方がわかりやすい。
+
+```{r}
+# 少なくとも母音を1つ含む単語をすべて探し出して、補集合を取る
+no_vowels_1 <- !str_detect(words, "[aeiou]")
+# 子音だけからなる単語を全て探し出す
+# [^aeiou]はaeiou以外、^と$で囲むと文字列全体、+は一回以上の繰り返し
+no_vowels_2 <- str_detect(words, "^[^aeiou]+$")
+identical(no_vowels_1, no_vowels_2)  ## identicalで比較
+```
+
+#### パターンにマッチする要素の選択
+
+`str_detect()`を使用してから、論理ベクトルでリストの部分集合を取る。または`str_subse()`を使う。
+
+```{r}
+# 論理ベクトルで部分集合を取る
+words[str_detect(words, "x$")]
+# str_subsetを使用
+str_subset(words, "x$")  
+```
+
+通常は対象はデータフレームの列にあるので、`filter()`を使う。
+
+```{r}
+df <- tibble(
+  word = words,
+# seq_along(x)はベクトルxの長さと同じ数の数列を作成、1:length(x)と等価、インデックスを簡単に作れる
+  i = seq_along(word) 
+)
+df %>% 
+  filter(str_detect(word, "x$"))
+```
+
+str_count()は単なるマッチの可否ではなく、文字列にマッチがいくつあるかを示す。
+
+```{r}
+x <- c("apple", "banana", "pear")
+str_count(x, "a")  ## 文字列にマッチがいくつあるか
+# 平均すると、1つの単語にどれだけ母音があるか?
+mean(str_count(words, "[aeiou]"))
+```
+
+```{r}
+df %>% 
+  mutate(
+    vowels = str_count(word, "[aeiou]"),
+    consonants = str_count(word, "[^aeiou]")
+  )
+```
+
+------------------------------------------------------------------------
+
+マッチが重なることは絶対に無いことに注意。
+
+```{r}
+str_count("abababa", "aba")
+str_view_all("abababa", "aba")
+```
+
+#### マッチの抽出
+
+実際にマッチしたテキストを抽出するには`str_extract()`を使う。解析サンプルとしてstringr::sentencesに格納されているHarvard英語コーパスを使用。720個の文がリストに格納されている。
+
+```{r}
+length(sentences)
+head(sentences)
+```
+
+色名を含む文を全て探す。最初に色名ベクトルを作成し、それを一つの正規表現にする。
+
+```{r}
+colors <- c("red", "orange", "yellow", "green", "blue", "purple")
+color_match <- str_c(colors, collapse = "|")
+color_match
+```
+
+色を含む文の部分集合リストを作り、どの色か調べるために色を抽出する。
+
+```{r}
+has_color <- str_subset(sentences, color_match) ## 色を含む文を選択してリストを作る
+matches <- str_extract(has_color, color_match)  ## 色を抽出
+# head(matches)
+str_view_all(has_color, color_match)
+```
+
+`str_extract()`は最初のマッチしか抽出しないことに注意。
+
+```{r}
+# マッチを2つ以上含む文を選択
+more <- sentences[str_count(sentences, color_match) >1] 
+str_view_all(more, color_match)
+str_extract(more, color_match)
+```
+
+マッチを全て取得するには`str_extract_all()`を使用する。返り値が2つ以上になるので、ベクトルではなくリストが返ってくる。
+
+```{r}
+str_extract_all(more, color_match)
+```
+
+```{r}
+# simplify = Tを使えば, str_extract_all()が少ないマッチでも最多マッチに合わせた行列を返す
+str_extract_all(more, color_match, simplify = TRUE)
+x <- c("a", "a b", "a b c")
+str_extract_all(x, "[a-z]", simplify = TRUE)
+```
+
+------------------------------------------------------------------------
+
+色名を単語の途中ではなく、独立した単語として抽出するには、色名を単語の境界を示す`\b`で挟む。
+
+```{r}
+colors2 <- c("\\bred", "orange", "yellow", "green", "blue", "purple\\b")
+color_match2 <- str_c(colors2, collapse = "\\b|\\b")
+color_match2
+has_color2 <- str_subset(sentences, color_match2)
+str_view_all(has_color2, color_match2)
+```
+
+「ing」で終わる単語を抽出する。`\\b`で単語の区切りを設定。`\w*`は任意の文字を任意の回数繰り返す。その後にingが続く。
+
+```{r}
+end_ing = "\\b\\w*ing\\b"
+# end_ing = "\\b[^ ]+ing\\b" # 別法："[^ ]+"は「空白以外の文字の1つ以上の連なり」
+ing_match <- str_subset(sentences, end_ing)
+# str_view_all(ing_match, end_ing)
+head(str_extract_all(ing_match, end_ing))
+```
+
+#### グループ化したマッチ
+
+文章から名詞を抽出するために、"a"または"the"の後に来る全ての単語を探す。`()`を使うことにより、2つのマッチがグループになる。
+
+```{r}
+## a または the の後に、空白以外の文字の一つ以上の連なりを名詞の近似とする
+noun <- "(a|the) ([^ ]+)"  
+has_noun <- sentences %>% str_subset(noun) %>% head(10)
+has_noun %>% str_extract(noun)
+```
+
+`str_extract()`は完全マッチ、`str_match()`は個別の部分マッチを示す、行列を返し第1列が完全マッチ、第2列以降がそれぞれのグループ`str_extract()`と同様、各文字列全てにマッチしたいなら、`str_match_all()`が必要。
+
+```{r}
+has_noun %>% str_match(noun)
+```
+
+データフレームを検索する場合は`tidyr::extract`を使用、`str_extract()`と同様に作用するが、マッチに名前を付ける必要がある。
+
+```{r}
+tibble(sentence = sentences) %>% 
+  tidyr::extract(
+    sentence, c("article", "noun"), "(a|the) ([^ ]+)", 
+    remove = FALSE
+  )
+```
+
+#### マッチの置換
+
+```{r}
+x <- c("apple", "pear", "banana")
+str_replace(x, "[aeiou]", "-")　　## 最初のマッチを置換
+str_replace_all(x, "[aeiou]", "-")　## 全てのマッチを置換
+```
+
+```{r}
+x <- c("1 house", "2 cars", "3 people")
+str_replace_all(x, c("1" = "one", "2" = "two", "3" = "three"))  ## 名前付きベクトルを指定すると複数の置換ができる
+```
+
+固定文字列で置換する代わりに、後方参照を使ってマッチした要素を挿入することもできる。
+
+```{r}
+sentences %>% 
+  str_replace("([^ ]+) ([^ ]+) ([^ ]+)", "\\1 \\3 \\2") %>% ## 2番目と3番目の単語の順序を入れ替える
+  head(5)
+```
+
+#### 分割
+
+`str_split()`を使うと文字列を分割できる。空白で分割すると、文を単語に分割できる。文ごとに要素の数が異なるのでリストを返す。
+
+```{r}
+sentences %>% head(5) %>% str_split(" ")
+"a|b|c|d" %>% 
+  str_split("\\|") %>% ## 長さ1のベクトルで返したいなら、リストの最初の要素[[1]]だけを抽出
+  .[[1]]
+
+sentences %>% ## simplity =TRUEで行列を返す
+  head(5) %>% 
+  str_split(" ", simplify = TRUE)
+```
+
+要素の最大個数を指定できる
+
+```{r}
+fields <- c("Name: Hadley", "Country: NZ", "Age: 35")
+fields %>% str_split(": ", n = 2, simplify = TRUE)
+
+x <- "This is a sentence.  This is another sentence."
+str_view_all(x, boundary("word")) ## パターンではなく、文字、行、文、後のboundary()で分割できる
+
+str_split(x, " ")[[1]]
+str_split(x, boundary("word"))[[1]]
+```
+
+#### 他の種類のパターン
+
+文字列のパターンを使えば自動的に`regex()`にラップされる。
+
+```{r}
+str_view(fruit, "nana")
+# Is shorthand for
+str_view(fruit, regex("nana"))
+```
+
+`regex()`の他の引数を使ってマッチの詳細を制御できる。
+
+```{r}
+bananas <- c("banana", "Banana", "BANANA")
+str_view(bananas, "banana")
+str_view(bananas, regex("banana", ignore_case = TRUE))  ## ignore_caseで大文字小文字を無視
+```
+
+`multiline`は\^と\$が文字列全体の先頭と末尾ではなく、各行の先頭と末尾にマッチする。
+
+```{r}
+x <- "Line 1\nLine 2\nLine 3"
+str_extract_all(x, "^Line")[[1]]
+str_extract_all(x, regex("^Line", multiline = TRUE))[[1]] 
+```
+
+`comments`は正規表現を読みやすくするためにコメントと空白を使う。
+
+```{r}
+phone <- regex("
+  \\(?     # optional opening parens
+  (\\d{3}) # area code
+  [) -]?   # optional closing parens, space, or dash
+  (\\d{3}) # another three numbers
+  [ -]?    # optional space or dash
+  (\\d{3}) # three more numbers
+  ", comments = TRUE) 
+str_match("514-791-8141", phone)
+```
+
+------------------------------------------------------------------------
+
+# データの読み込みと保存
+
+データ解析の対象となるような大きなデータセットは、通常は手作業で入力することは無く、ファイルを読み込んでデータフレームオブジェクトとして保存する。
+
+## RStudioによるデータの読み込み
+
+Environmental paneのImport
+DatasetボタンからcsvファイルやExcelファイルを読み込むことができる。
+
+## 関数によるデータの読み込みと保存
+
+`read.csv()`や`read_excel()`関数を使用する。
+
+```{r message=FALSE}
+# library(readxl) ## excelやcsv fileを読み込む
+# library(openxlsx)   ## excelファイルを読み書きする
+seiseki <- read.csv("seiseki.csv", header =T, sep = ",", stringsAsFactors = F)
+test_data <- read_excel("test_data.xlsx", sheet = "200302")  # 読み込むシートも指定できる
+head(seiseki)
+head(test_data)
+```
+
+------------------------------------------------------------------------
+
+Excelファイルやテキストファイル上で該当するデータ範囲をクリップボードにコピーして、データフレームとして読み込みことができる。
+WindowsとMacでコマンドが異なる。
+
+```{r warning=FALSE}
+# clip_tab <- read.table(pipe("pbpaste"), sep = "", header = T)  # Macの場合, sepは区切り文字を指定、header = Tは先頭行を列名にする
+# clip_tab <- read.table("clipboard", sep = "", header = T)  # Windowsの場合
+```
+
+------------------------------------------------------------------------
+
+Rのデータフレームをcsv形式で保存するには`write.csv()`を、Excel形式で保存するには`write.xlsx()`をそれぞれ使用。
+
+```{r}
+write.csv(test_data, file = "test_data_csv.csv")
+write.xlsx(seiseki, file = "seiseki.xlsx", colNames = T, sheetName = "seiseki") 
+```
+
+## 複数のデータフレームの結合
+
+2つ以上のデータフレームを縦に連結するには`bind_rows()`を使用する。同じ名前の列を結合する。
+
+```{r}
+df1 <- read_excel("test_data.xlsx", sheet = "200302")
+str(df1)
+df2 <- read_excel("test_data.xlsx", sheet = "200304")
+str(df2)
+df_merge <- bind_rows(df1, df2)
+str(df_merge)
+df_list <- list(df1, df2)
+df_merge2 <- bind_rows(df_list) # bind_rowsにわたす引数はリストでも可
+```
+
+## 多数のデータファイルの読み込み
+
+### 単一のデータフレームにまとめる
+
+多数のデータファイルからデータを読み込んで、1つのデータフレームに集約させる場合は次の3段階で行う：
+
+1.  読み込むcsv/Excelファイルをワーキングディレクトリの下のデータフォルダにまとめる、サブフォルダに分かれていても良い。\
+2.  データフォルダ中のデータファイルのパスをサブフォルダも含めて取得してリストを作る。\
+3.  リストを使用してデータファイルを一括で読み込み、データフレーム化した後に縦に結合する。
+
+以下の例ではデータフォルダmaxima_dataの下に5つのサブフォルダがあり、それぞれに複数のcsvファイルが格納されている。\
+Excelファイルを読み込む場合は.csvを.xlsxに変える。
+
+```{r}
+data_dir <- "maxima_data"  # データフォルダの指定
+# list.files()関数でフォルダ内のファイル名リストを取得、recursiveでサブフォルダも探索する、拡張子も指定できる
+csv_list <- list.files(data_dir, full.names = T, recursive = T, pattern = "*.csv") 
+str(csv_list) # 合計で84個のcsvファイル
+apply_res <- csv_list %>%
+  lapply(., read.csv, header =T, sep = ",", stringsAsFactors = F) # lapplyはリストの各要素に対して演算を行い、結果をリストで返す
+length(apply_res) # 84個のデータフレームが格納されている
+csv_merge <- bind_rows(apply_res)  # bind_rowsでapply_res中のデータフレームを連結
+str(csv_merge)
+# apply_resを作成せずに一気に連結する場合
+csv_merge2 <- csv_list %>%
+  lapply(., read.csv, header =T, sep = ",", stringsAsFactors = F) %>% 
+  bind_rows()
+str(csv_merge2)
+
+```
+
+### 単一のExcelファイルの各シートに出力
+
+読み込んだ多数のデータファイル（.csv or
+.xlsx）をデータフレームに変換して、1つのExcelファイルのワークシートにそれぞれ出力する場合。
+
+```{r}
+data_dir2 <- "maxima_data/230228_maxima_counts"
+csv_list2 <- list.files(data_dir2, full.names = T, recursive = T, pattern = "*.csv") 
+sheetname_list <- basename(csv_list2) %>%  # basenameは上位のフォルダ名を含まないファイル名を返す
+  str_replace_all(c("maxima_counts_" = "", ".csv" = "")) %>% # str_replace_all()で複数マッチを一度に置換、接頭語と拡張子を除く
+  str_sub (., start = 1, end = 31) # シート名は31文字以内の制限があるので、さらに先頭から31文字を切り出す
+str(sheetname_list)
+names(csv_list2) <- sheetname_list  # csv_list2の要素の名前を、短縮したファイル名のリストsheetname_listで置換
+
+file_list <- csv_list2 %>%
+  lapply(., read.csv, header =T, sep = ",", stringsAsFactors = F) # bind_rowsで結合せずにリストにデータフレームを格納
+length(file_list)
+file_list %>% write.xlsx(., file = "assembled.xlsx", colNames = T)  ## xlsxファイルに書き出し、各シートが各ファイルに対応
+```
+
+# データの整理と変換
+
+## 用語の定義
+
+-   **変数
+    variable**：測定できる量、質、または特性。値が離散的なカテゴリ変数と、値が連続的な数値変数がある。\
+-   **値 value**：測定時の変数の状態。
+    変数の値は測定ごとに変化する場合がある。\
+-   **観察/観測
+    observation**：同様の条件下で行われた一連の測定。通常、観察ですべての測定を同時に同じ対象に対して行う。
+    観測には複数の値が含まれ、それぞれ異なる変数に関連付けられている。
+    観測をデータポイントと呼ぶことがある。
+    表形式のデータは一連の値であり、それぞれが変数と観察に関連付けられている。
+
+------------------------------------------------------------------------
+
+-   **一意識別子 unique
+    identifier**：データ内の全ての行を一意に識別するための変数または変数の組み合わせ。
+    単一の変数で一意性を表す場合は、基本的に機械的につけた番号やコードになる。\
+-   **id変数 id
+    variable**：あるカテゴリについて、個別の要素を識別するための固有の数字を表す変数（例：運転免許証番号、クレジットカード番号など）。
+
+## 整理データ
+
+整理データ tidy dataは以下の条件を満たすデータ：
+
+1.  各変数（variable）に専用の列に配置されており、列名は変数名\
+2.  各観測（observation）に専用の行に配置されている\
+3.  各値（value）は専用のセルに配置されている\
+    パッケージtidyverseにはtibble形式の整理データを変換するための優れた関数が含まれている。
+
+## パイプ演算子
+
+パイプ演算子 `%>%`
+は左辺の計算結果のオブジェクトを右辺の第1引数に渡す。第1引数以外で呼び出す時は
+`.`(ドット演算子)で行う。
+
+```{r}
+# library(magrittr)
+3 %>% c(., 3 + .) 
+3 %>% c(3 + .) # 右辺の第一引数は省略可能
+3 %>% { c(3 + .) }  # 中括弧はパイプが関数内の最初の引数を使用しないようにする 
+mtcars %>% {cor(.$mpg, .$cyl)}
+1:10 %>% mean(.) 
+1:10 %>% mean # 右辺の第一引数は省略可能
+1:10 %>% plot(x = seq(10, 100, 10), y = .)
+```
+
+------------------------------------------------------------------------
+
+Dollar演算子 `%$%` はデータフレームの列にアクセスできる
+
+```{r message=FALSE}
+iris %>% 
+  filter(Species != "setosa") %$% 
+  lm(Sepal.Length ~ Sepal.Width) %>%   ## lm(.$Sepal.Length ~ .$Sepal.Width)と同等
+  summary()
+```
+
+## データの整理
+
+一般的なデータセットは整理データの形式になっていないことの方が多い。\
+データ解析の前にデータを整理する必要がある。まず何が変数で、何が観測かを見極めることが重要。
+
+### KeyとValueの関係
+
+日付とその日の天気のような、2つの情報の組を考える。個々の組を識別する情報をKey「キー」と呼び、もう1つをValue「値」と呼ぶ。
+Key-Value型データベースは、このようなkeyとvalueの組を保存するためのデータベース、辞書データやハッシュテーブルとしても知られる。
+複数のkeyでvalueを識別する場合もある。
+
+### ワイド形式とロング形式
+
+列方向すなわち横方向に伸びるようにまとめられたデータをwide
+format（ワイド形式）、
+行方向すなわち縦方向に表が伸びていくようにまとめられたデータをlong
+format（ロング形式）という。ワイドかロングかは相対的な関係である。
+ワイド形式は多数のkeyが列名になっており、valueを示す列は存在しないことが多い。ロング形式は少数のkeyと1つのvalueの列から構成されることが多い。
+
+```{r}
+library(tidyverse)
+table4a  # tidyverseに収録されているサンプルデータ、ワイド形式、変数の「値」が列名になっている
+table4a %>% gather("1999":"2000", key =  "year", value = "cases")  # gatherでロング形式に変換、変換する列、列名にする変数名key、列名にする値名valueをそれぞれ指定
+table4a %>% pivot_longer(cols = c("1999", "2000"), names_to = "year", values_to = "cases") 　#　同機能のより新しい関数 
+```
+
+------------------------------------------------------------------------
+
+```{r}
+table2  # 列typeに変数casesとpopulationが入っており、変数の値は列countに入っている
+table2 %>% spread(key = type, value = count) # spreadで広げる、慣例として既存の列は""で囲まず、新規に作成する際は""で囲む
+table2 %>% pivot_wider(names_from = type, values_from = count)  # 同機能のより新しい関数
+```
+
+### 分割と結合
+
+１つの列に２つの変数が含まれている場合、`separate()`で分ける
+
+```{r}
+table3
+table3 %>% separate(rate, into = c("cases", "population"))  ## separate()はdefaultで非英数文字で値を分割する
+table3 %>% separate(rate, into = c("cases", "population"), sep = "/") ## sep引数で指定することも可能
+table3 %>% separate(rate, into = c("cases", "population"), convert = T)  ## convertにより数字がより良いint型に変換される
+table3 %>% separate(year, into = c("century", "year"), sep = 2)  ## sepに整数値を渡すと、文字列の左端を+1, 右端を-1としてその整数の位置で分割する
+```
+
+------------------------------------------------------------------------
+
+`unite()`は`separate()`の逆の変換。
+
+```{r}
+table5
+table5 %>% unite("new", century, year, sep = "") ## sepを指定しないデフォルトでは「_」で値が繋がれる
+```
+
+## データの変換
+
+dplyrの基本関数：
+
+-   `filter()`：値から観測値を選び出す\
+-   `arrange()`：行を並び替える\
+-   `select()`：名前で変数(列)を選ぶ\
+-   `mutate()`：既存の変数の関数で新たな変数を作る\
+-   `summarise()`：多数の値から単一の要約量を作る
+
+### filter
+
+```{r}
+library(tidyverse)
+library(nycflights13)
+data("flights")
+filter(flights, month==1, day==1)  ## 1月1日のフライト、複数の条件は＆になるので両方満たした行が取り出される
+filter(flights, month == 11 | month ==12)  ## 11月または12月のフライト
+# nov_dec <- filter(flights, month %in% c(11, 12))  ## このようにも書ける
+```
+
+------------------------------------------------------------------------
+
+```{r}
+filter(flights, arr_delay <= 120, dep_delay <= 120)  ## 出発または到着で120分を超える遅延がなかったフライト
+# filter(flights, !(arr_delay > 120 | dep_delay > 120)) # このようにも書ける
+```
+
+------------------------------------------------------------------------
+
+```{r}
+filter(flights, between(dep_time, 0, 6)) ## betweenは範囲を指定、指定した数値も含む
+```
+
+### arrange
+
+```{r}
+# 順序付ける列名の集合を引数に取る。
+# 複数の列名を与えると、前列の順序で同じ順序になったものをさらに順序付けるために後列を使用。
+arrange(flights, year, month, day)
+arrange(flights, desc(arr_delay))  ## 降順にするにはdescを使用、NAは常に一番最後になる
+```
+
+### select
+
+```{r}
+select(flights, year, month, day) ## 列を名前で選ぶ
+select(flights, year:day)  ## yearとdayの間にある全ての列を選ぶ
+select(flights, -(year:day)) ## yearとdayの間の列以外の全ての列
+```
+
+------------------------------------------------------------------------
+
+`select()`ではヘルパー関数
+`start_with()`、`ends_with()`、`contains()`、`num_range()`等が使用できる。
+
+```{r}
+select(flights, starts_with("dep"))  # "dep"で始まる列
+select(flights, ends_with("time"))  # "time"で終わる列
+select(flights, contains(c("air", "sched", "arr")))  # "air", "sched", "arr"のいずれかを含む
+select(flights, matches("time$"))  # 正規表現にマッチする列名、ここでは"time"で終わる列
+# num_range("x", 1:3)  ## x1, x2, x3にマッチする
+```
+
+------------------------------------------------------------------------
+
+`select()`で列名を変更することもできるが、明示しない変数を全て削除するのであまり便利でない。\
+列名の変更には`rename()`を使用する。
+
+```{r}
+select(flights, tail_num = tailnum)  # new_name = old_name
+rename(flights, tail_num = tailnum)
+```
+
+------------------------------------------------------------------------
+
+`select()`とヘルパー関数`everything()`を同時に使うことで、指定した列を先頭に移動できる。
+
+```{r}
+select(flights, time_hour, air_time, everything())
+
+```
+
+------------------------------------------------------------------------
+
+選択したい列名を文字列ベクトルで指定したい場合は`one_of()`を使用する。
+
+```{r}
+vars <- c("year", "month", "day", "dep_delay", "arr_delay")
+select(flights, one_of(vars))   ## one_of()は文字列をselectにわたす場合に必要
+# select(flights, vars)  # 直接使用すると警告が出る
+```
+
+### mutate
+
+```{r}
+flights_sml <- select(flights,  ## 変数が少ないデータセットを作る
+  year:day, ends_with("delay"),
+  distance,
+  air_time)
+
+mutate(flights_sml,
+       gain = arr_delay - dep_delay,  # 新しく定義した列を最後尾に追加する
+       speed = distance/air_time *60,
+       hours = air_time*60,
+       gain_per_hour = gain/hours) ## 作成したばかりの列を参照できる
+```
+
+普通の書き方では新しく作る列名には変数を使用できず、変数名がそのまま新規の列名として解釈される。
+```{r}
+flights_sml2 <- select(flights,  ## 変数が少ないデータセットを作る
+  month,
+  distance,
+  air_time)
+for (i in 1:3){
+  new_col_name = paste("new_col", i, sep = "_")
+  flights_sml2 <- 
+    flights_sml2 %>% 
+      mutate(new_col_name = n())
+}
+flights_sml2
+```
+
+列名に変数を使用するには先頭に`!!`（読み方:bang bang）を付けると変数として解釈される。またこの場合は代入に`=`ではなく`:=`を使用する必要がある。
+```{r}
+for (i in 1:3){
+  new_col_name = paste("new_col", i, sep = "_")
+  flights_sml2 <- 
+    flights_sml2 %>% 
+      mutate(!!new_col_name := n())
+}
+flights_sml2
+```
+
+------------------------------------------------------------------------
+
+`transmute()`は作成した列を抽出する
+
+```{r}
+transmute(flights,
+          gain = arr_delay - dep_delay,
+          hours = 60*air_time,
+          gain_per_hours = gain/hours) 
+```
+
+## データの集計
+
+### 要約
+
+`summarise()`はデータフレームを要約して結果を1行で出力する。後述の`group_by()`と組み合わせて使用することが多い。\
+便利な要約関数
+
+-   中央値：`median()`\
+-   散らばりの代表値：`sd(), IOR(), mad()`\
+-   ランクの代表値： `min(), max(), quantile()`\
+-   位置の代表値：`first(), nth(x, 2), last()`\
+
+```{r}
+summarise(flights, mean_delay= mean(dep_delay, na.rm =T), max_delay = max(dep_delay, na.rm = T)) ## 欠損値は除く
+```
+
+### グループ分け
+
+`group_by()`はデータを指定されたカテゴリ変数の値ごとにグループ分けし、分析単位をデータセット全体から個別グループに変更する。
+
+```{r}
+flights %>% group_by(year, month) %>% 
+  summarise(mean_dep_delay=mean(dep_delay, na.rm =T))  # 各年の各月ごとのdep_delayの平均値を計算
+
+flights %>% group_by(carrier) %>% 
+  filter(dep_delay >= 0) %>%  # グループごとにfilter()を適用
+  summarise(mean_dep_delay=mean(dep_delay, na.rm =T))
+
+flights %>%
+  group_by(dest) %>%
+  summarise(
+    count = n(),
+    dist = mean(distance, na.rm=T),
+    delay = mean(arr_delay, na.rm=T)
+    ) %>%
+  filter(count >20, dest != "HML")
+```
+
+### 個数の計測
+
+`n()`は各グループの行数（サイズ）を返す。非欠損値の個数を数えるには`sum(!is.na(x))`を使用し、一意な値の個数を数えるには`n_distinct()`を使う。
+
+```{r}
+flights %>% 
+  group_by(carrier, origin) %>% 
+  summarise(count = n(), unique_count = n_distinct(tailnum))
+```
+
+------------------------------------------------------------------------
+
+`count(a, b)`は`df %>% group_by(a, b) %>% summarise(count = n())`に等しい。\
+オプションで重み変数`wt`を追加することもできる。
+
+```{r}
+flights %>% count(year, dest)
+flights %>% count(tailnum, wt = distance)  # 個別の飛行機の総飛行距離を「カウント」できる
+```
+
+### 最頻値  
+
+最頻値を直接求める関数は無いので、個数や件数をカウントしてからその最大値を抽出する。  
+例：月ごとの目的地（dest）の最頻値を求める。  
+`month`と`dest`でグループ化して個数`count`を求める。さらに`count`の最大値`max_count`を求め、それと`count`が一致する行を抽出。
+
+```{r}
+flights %>% 
+  group_by(month, dest) %>% 
+  summarise(count = n()) %>% 
+  mutate(max_count = max(count)) %>% 
+  filter(count == max_count)
+```
+
+`count`の最大値は`count %>% max()`と書くこともできる。  
+```{r}
+flights %>% 
+  group_by(month, dest) %>% 
+  summarise(count = n()) %>% 
+  filter(count == count %>% max())
+```
+
+------------------------------------------------------------------------  
+
+クロス集計表を使用する方法。  
+`table()`でクロス集計が可能。
+```{r}
+table_dest <- table(flights$month, flights$dest) 
+table_dest[, 1:10]
+```
+
+forループでクロス集計表の`i`行目の最大の要素の目的地（`dest`）を取り出す。`which.max()`は最大値のインデックスを返す。
+```{r}
+months <- names(table_dest[,1]) # 1列目を取り出す
+
+mode_dest <- c()
+for (i in 1:length(months)){
+    mode_dest[i] <- names(which.max(table_dest[i,])) # i行目のデータで最大の要素の名前を取り出す
+    }
+data.frame(month = months, mode_dest = mode_dest)
+```
+
+
+### ウインドウ関数
+
+#### scoped functionとacross()
+
+`filter(), arrange(), select(), mutate(), summarise(), group_by()`には複数の列を同時に処理する、scoped
+functionが用意されている。
+
+-   `_all`: 全ての列に同じ操作を行う。\
+-   `_if`: 条件を満たす列に同じ操作を行う。\
+-   `_at`: 指定した複数の列に同じ操作を行う。
+
+```{r}
+flights %>% select(ends_with("time")) %>%  # "time"で終わる列を選択
+  mutate_all(abs)     # 関数abs()で全ての列の絶対値を求める
+flights %>% mutate_if(is.numeric, abs)  # 数値型のデータ列に対してのみ、abs()を適用
+flights %>% mutate_at(c("dep_delay", "arr_delay"), abs)  # 列を直接指定できる
+```
+
+------------------------------------------------------------------------
+
+最近ではscoped functionの代わりに`across()`の使用が推奨されている。
+
+```{r}
+flights %>% select(ends_with("time")) %>%  # "time"で終わる列を選択
+  mutate(across(everything(), abs))     # everything()で全ての列を指定
+
+flights %>% mutate(across(is.numeric, abs))  # 数値型のデータ列に対してのみ、abs()を適用
+flights %>% mutate(across(c("dep_delay", "arr_delay"), abs))  # 列を直接指定できる
+
+flights %>% summarise(across(ends_with("time"), ~ mean(.x, na.rm = TRUE)))  # ラムダ関数も使える
+```
+
+------------------------------------------------------------------------
+
+#### 差分の計算
+
+`dplyr::lag()`や`dplyr::lead()`により変数（ベクトル）の前後の値を取得して、差分を簡単に計算することができる。ずらすことにより欠損値になる箇所は`default`で指定した値で埋められる。
+単に`lag()`と書くと`stats::lag()`関数になるので注意。
+
+```{r}
+x <- 1:10
+lag1 <- dplyr::lag(x, n = 1, default = NA) # nはずらすindexの大きさ、
+lead1 <- dplyr::lead(x)
+data.frame(x, lag1, lead1)
+```
+
+月ごとの総飛行距離の前月との差分を計算。
+
+```{r}
+flights %>% 
+  group_by(month) %>% 
+  summarise(sum_distance = sum(distance)) %>% 
+  mutate(lag_month = lag(month), lag_sum_distance = lag(sum_distance),
+         diff = sum_distance - lag_sum_distance)
+```
+
+### 重複の削除
+
+`dplyr::distinct()`によりデータフレームから重複を削除できる。引数を指定しないと重複の無いデータフレームを返す。
+```{r}
+# originとdestの組み合わせ
+flights %>% 
+  select(origin, dest) %>% 
+  distinct()
+```
+
+引数に列名を指定することで、重複を確認する列を指定することができる。列名は複数指定することも可能。
+```{r}
+flights %>% 
+  select(origin, dest) %>% 
+  distinct(origin)
+
+flights %>% 
+  select(origin, dest) %>% 
+  distinct(dest)
+
+flights %>% 
+  select(origin, dest) %>% 
+  distinct(origin, dest) # distinct()と同じ
+```
+
+引数`.keep_all = TRUE`とすると指定した列以外の全変数も残す。この時残るのは初出の行。
+```{r}
+flights %>% 
+  select(origin, dest) %>% 
+  distinct(origin, .keep_all = TRUE)
+```
+
+
+## 関係データ
+
+関係データベース（Relational database）とは表形式の複数のデータを関連付けて扱うデータベース。\
+表の組を結びつける変数はkeyと呼ばれる。keyは1つまたは複数で観測を一意に表し、以下の2種類がある：
+
+-   **primary key** 観測を一意に識別する\
+-   **foreign key** 他の表の観測を一意に識別する\
+    変数がprimary keyとforeign keyの両方を兼ねる場合もある。
+
+```{r}
+library(tidyverse)
+library(nycflights13)
+airlines
+airports
+planes
+weather
+```
+
+------------------------------------------------------------------------
+
+primary keyが本当に観測を一意に識別しているか検証する。primary
+keyが無い場合は`mutate()`と`row_number()`等で代替keyを作る。
+
+```{r}
+planes %>% count(tailnum) %>% filter(n > 1)  # primary keyのcount()で、各エントリについてnが1より大きくないか調べる
+# weatherの観測を一意に識別するには、5つの変数が必要, countは自動的にgroup_by()することに注意
+weather %>% count(year, month, day, hour, origin) %>% filter(n > 1)
+```
+
+### 更新ジョイン
+
+更新ジョイン mutating joinは2つの表（X, Y）の変数を組み合わせる。
+keyとマッチする観測を探し出し、変数を１つの表からもう１つの表にコピーする。`mutate()`と同様、ジョイン関数は変数を右側に追加する。
+
+```{r}
+flights2 <- flights %>% select(year:day, hour, origin, dest, tailnum, carrier)
+flights2
+# flightsに航空会社の正式名を追加するため、airlinesとflightsをleft_joinで組み合わせる
+flights2 %>% select(-origin, -dest) %>% left_join(airlines, by = "carrier")
+```
+
+#### 内部ジョイン
+
+内部ジョイン inner join, keyが共通した行が抽出される、 X AND
+Y。一般に観測が失われるため分析には不向き。
+
+```{r}
+x <- tribble(
+  ~key, ~val_x,
+  1, "x1",
+  2, "x2",
+  3, "x3"
+)
+y <- tribble(
+  ~key, ~val_y,
+  1, "y1",
+  2, "y2",
+  4, "y3"
+)
+
+x %>% 
+  inner_join(y, by = "key")
+```
+
+#### 外部ジョイン
+
+内部ジョインが両方の表にある観測を保持する一方、外部ジョイン outer
+joinは、少なくとも1つの表にある観測を保持する。以下の3種類がある：
+
+1.  `left join`：Xの全観測を保持する、マッチが無くても元の観測が保持されるので一番良く使われる\
+2.  `right join`：Yの全観測を保持する\
+3.  `full join`：XとY全ての観測を保持する、X OR Y
+
+------------------------------------------------------------------------
+
+重複キー
+
+```{r}
+# 1つの表に重複キーがある場合
+x <- tribble(
+  ~key, ~val_x,
+  1, "x1",
+  2, "x2",
+  2, "x3",
+  1, "x4"
+)
+y <- tribble(
+  ~key, ~val_y,
+  1, "y1",
+  2, "y2"
+)
+left_join(x, y, by = "key")
+# 両方の表に重複キーが含まれる場合、どちらの表でも観測を一意に識別できないので、普通はエラーになる。joinすると全ての組み合わせが得られる
+x <- tribble(
+  ~key, ~val_x,
+  1, "x1",
+  2, "x2",
+  2, "x3",
+  3, "x4"
+)
+y <- tribble(
+  ~key, ~val_y,
+  1, "y1",
+  2, "y2",
+  2, "y3",
+  3, "y4"
+)
+left_join(x, y, by = "key")
+```
+
+------------------------------------------------------------------------
+
+Key列の指定\
+defaultでは`by =NULL`で、両方の表に現れる全ての変数を使い、natural
+joinする
+
+```{r}
+flights2 %>% 
+  left_join(weather)
+# flight2とplanesにはどちらもyearがあるが、それぞれ異なる意味なのでtailnumだけでjoinしたい
+
+flights2 %>% 
+  left_join(planes, by = "tailnum")
+# この場合、出力ではyear.x、year.yと区別される
+
+# c("a" = "b")とすると、表Xのaと表Yのbをマッチさせる
+flights2 %>% 
+  left_join(airports, c("dest" = "faa"))
+flights2 %>% 
+  left_join(airports, c("origin" = "faa"))
+```
+
+### フィルタジョイン
+
+Filtering join フィルタジョイン、変数ではなく観測に影響を及ぼす。
+
+-   `semi_join(x, y)`:セミジョインはyのとマッチするxの全ての観測を保持する。\
+-   `anti_join(x, y)`:アンチジョインはyのとマッチするxの全ての観測を取り除く。\
+
+```{r}
+# 例） 人々が最もよく行く旅行先のトップ10を探す。
+top_dest <- flights %>% count(dest, sort = T) %>% head(10)
+top_dest
+# これらへのフライトを探す
+flights %>% filter(dest %in% top_dest$dest)
+# しかしこの方式を複数の変数について拡張するのは容易ではないので、代わりにsemi_joinを使用する
+flights %>% semi_join(top_dest)
+```
+
+------------------------------------------------------------------------
+
+アンチジョインはジョインのミスマッチの診断に使うことができる。
+
+```{r}
+# flightsとplanesを連結する時に、planesとマッチがとれないflightsが多いかどうか調べる
+flights %>% anti_join(planes, by = "tailnum") %>% count(tailnum, sort = T)
+```
+
+### ジョインの問題
+
+1.  各表の主キーとなる変数を確認する
+2.  主キーの変数に欠損値が無いことを確認する
+3.  外部キーが他の表の主キーとマッチすることを確かめる
+
+### 集合演算
+
+`intersect(x,y)`：xとyに共通な観測だけを返す。\
+`union(x,y)`：xとyにある観測を一意にして返す。\
+`setdiff(x,y)`：xにはあるがyにはない観測を返す。
+
+```{r}
+df1 <- tribble(
+  ~x, ~y,
+  1,  1,
+  2,  1
+)
+df2 <- tribble(
+  ~x, ~y,
+  1,  1,
+  1,  2
+)
+
+intersect(df1, df2)
+union(df1, df2)
+setdiff(df1, df2)
+setdiff(df2, df1)
+```
+
+------------------------------------------------------------------------
+
+## データの畳み込み
+
+tibbleにはデータフレームやtibbleも格納できる。`tidyr::nest()`を使うと、データをtibble内に畳み込むことができる。畳み込まれたサブデータはデフォルトではリスト列"data"に格納される。名前を変更する場合は引数`.key`で指定する。畳み込まれたデータ構造のことをネストデータあるいは入れ子データと呼ぶ。
+
+```{r}
+# ダミーデータの生成, LETTERSとlettersは共にbuilt-in constantsでそれぞれ大文字と小文字のアルファベットが格納されている
+set.seed(71)
+N <- 15
+dat <- tibble(tag1 = sample(LETTERS[1:3], N, replace = TRUE),
+              tag2 = sample(letters[1:5], N, replace = TRUE),
+              y = rnorm(N),
+              x = runif(N))
+```
+
+tibbleを要素に持つ、リスト形式で格納されている。
+
+```{r}
+dat %>% 
+  nest(.key = "data")
+```
+
+事前に変数`tag1`でグループ化しておくと、`tag1`の水準ごとにデータを畳み込む。
+
+```{r}
+dat %>% 
+  group_by(tag1) %>% 
+  nest()
+```
+
+`group_nest()`を使うとグループ化と畳み込みを同時に行う。
+
+```{r}
+dat %>% 
+  group_nest(tag1, tag2)
+```
+
+畳み込まれたデータを広げるには`unnest()`を使う。リスト列が複数ある場合、広げるリスト列を()内で指定できる。
+
+```{r}
+dat %>% 
+  group_nest(tag1, tag2) %>% 
+  unnest()
+```
+
+------------------------------------------------------------------------
+
+このような入れ子データ構造は、グループ分けされたサブデータに対してmap関数で統計処理を適用するのに有用。\
+data列の各データのxの平均値を計算して新しい列に格納してみる。`map()`だとリストが返り値になるが、`map_dbl()`だと実数が返り値。
+
+```{r}
+dat_nest <- dat %>% 
+  group_nest(tag1)
+dat_nest %>% 
+  mutate(x_mean = map_dbl(data, ~ mean(.$x)))  # .でリスト列中の各リストを表すためには~による記法が必要
+```
+
+`group_by()`と`summarise()`を使用した場合と比較して、統計要約量を別のデータフレームに格納する必要が無いのが利点。同様に統計検定も可能。
+
+```{r}
+dat_nest %>%
+  mutate(ttest = map(data, ~ t.test(.$x, .$y)),
+         pval = map_dbl(ttest, ~.$p.value))
+```
+
+各サブデータのさらに一部を抽出して検定することも可能。以下では`tag2 == "b"`でないデータについて検定している。
+
+```{r}
+dat_nest %>%
+  mutate(x = map(data, ~ filter(., tag2 != "b") %>% .$x),
+         y = map(data, ~ filter(., tag2 != "b") %>% .$y),
+         ttest = map2(x, y, ~ t.test(.x, .y)),
+         pval = map_dbl(ttest, ~ .$p.value))
+```
+
+------------------------------------------------------------------------
+
+# データの可視化
+
+## ggplot2によるグラフ作成
+
+### 基本的な考え方
+
+ggplot2はHadely
+Wickhamによって開発されたデータ可視化のためのパッケージ。「Grammer of
+Graphics」の思想に基づいている。グラフの構成要素のそれぞれを1つの層（レイヤー）と捉え、これらを重ねることでグラフを作成する。
+
+------------------------------------------------------------------------
+
+### 用語の定義
+
+-   **データ** :
+    視覚化される情報。データは変数とその値で構成され、データフレームにロング形式で格納される。カテゴリ変数の値は離散的であり、数値変数の値は連続的。\
+-   **幾何オブジェクト（geometric object）** :
+    データを表現するための散布図、ヒストグラム等のグラフ。折れ線グラフなら`geom_line()`といったように、幾何オブジェクトは`geom_`で始まる関数で表される。\
+-   **エステティック属性（aesthetic）** :
+    幾何オブジェクトの視覚的性質（x,
+    yの位置、線の色、点の形など）。エステティック属性は幾何オブジェクトごとに異なる。
+-   **マッピング** :
+    データの変数とエステティック属性を**対応させる**こと。`mapping = aes(マッピング)`で指定する。`mapping=`は省略可能。\
+-   **設定** :
+    エステティック属性を、データ変数の値とは無関係な、ある一定の値に設定すること。
+-   **スケール** :
+    データ空間の値からエステティック空間へ、値をマッピングするやり方をコントロールする。\
+-   **ガイド** :
+    視覚属性がデータ空間にどのようにマッピングし直されるかを示す。例:
+    軸上の目盛りとラベル、凡例など。
+
+### グラフ作成の文法
+
+まずデータの入ったデータフレームを呼び出し、`ggplot()`関数で**デフォルト**のマッピングを指定する。下の例ではxに変数`coutry`を、yに変数`cases`を指定。次にどのような幾何オブジェクトでプロットするかを指定する。下の例では`geom_point()`で散布図にする。また`geom_point()`内に`aes()`を置き、変数`year`を点の色である`color`にマッピングする。この`color = year`というマッピングは`geom_point()`に限定されており、他の幾何オブジェクトには作用しない。もし`ggplot()`内の`aes()`で`color = year`とマッピングすれば、以下の全ての幾何オブジェクトに作用する。
+
+```{r}
+library(tidyverse)
+tb1<- table1 # tidyverseに収録されているデータ
+plot1 <- tb1 %>% 
+  ggplot(mapping = aes(x = country, y = cases)) + 
+  geom_point(aes(color = year))
+plot1
+```
+
+マッピングと設定の違い。`color`の値を`aes()`の外でredに指定する。データの値とは無関係に全ての点が赤色になる。
+
+```{r}
+plot2 <- tb1 %>% 
+  ggplot(mapping = aes(x = country, y = cases)) + 
+  geom_point(color = "red")
+plot2
+```
+
+デフォルトでは変数`year`は数値型であり連続的変数としてcolorにマッピングされた。factor型に変換してから離散的変数としてマッピングすることもできる。
+
+```{r}
+plot3 <- tb1 %>% 
+  mutate(year = as.factor(year)) %>% 
+  ggplot(mapping = aes(x = country, y = cases)) + 
+  geom_point(aes(color = year))
+plot3
+```
+
+------------------------------------------------------------------------
+
+スケール変更の例。`scale_color_manual()`で色のスケール（色の対応のさせ方）を変更。また`scale_y_continuous()`でy軸の範囲を変更する。
+
+```{r}
+plot3r <- tb1 %>% 
+  mutate(year = as.factor(year)) %>% 
+  ggplot(mapping = aes(x = country, y = cases)) + 
+  geom_point(aes(color = year)) +
+  scale_colour_manual(values = c("orange", "forestgreen"))+
+  scale_y_continuous(limits = c(0, 250000))
+  
+plot3r
+```
+
+------------------------------------------------------------------------
+
+## Rにおける色の使い方
+
+`ggplot2`において色はエステティック属性の1つであり、`x`座標やサイズ（`size`）と同じように扱われる。\
+幾何オブジェクトの色を**設定**するには、`geom_**()`関数の`aes()`の
+**外で**`color`または`fill`の値を設定する。\
+変数を幾何オブジェクトの色に**マッピング**するには、`aes()`の**中で**`color`または`fill`の値に変数をマッピングする。
+
+```{r}
+library(RColorBrewer)
+display.brewer.all(type = "div")
+display.brewer.all(type = "seq")
+display.brewer.all(type = "qual")
+display.brewer.all(colorblindFriendly = TRUE)
+brewer.pal(4, "Set2")
+dput(brewer.pal(4, "Set2")) # dput()はオブジェクトをテキスト形式でコンソールに出力する、ベクトルを生成するのに便利
+display.brewer.pal(4, "Set2")
+brewer.pal.info
+```
+
+---
+
+`ggplot2`の標準のカラーパレット  
+
+```{r}
+dum_dat <- data.frame(key=c("A", "B", "C", "D", "E", "F", "G", "H"),
+                             value = c(1, 1, 1, 1, 1, 1, 1, 1), stringsAsFactors = TRUE)
+std_col_pal <- dum_dat %>% 
+  ggplot(aes(x = key, y = value, fill=key))+
+  geom_col()+
+  scale_fill_manual(values = c("#F8766D", "#CD9600", "#7CAE00", "#00BE67", "#00BFC4", "#00A9FF", "#C77CFF", "#FF61CC"))+
+  xlab("")+
+  ylab("")
+std_col_pal
+```
+
+無難な3色  
+
+```{r}
+acceptable_3col_pal <- dum_dat %>%
+  filter(key %in% c("A", "B", "C")) %>% 
+  ggplot(aes(x = key, y = value, fill=key))+
+  geom_col()+
+  scale_fill_manual(values = c('#bdbdbd','#3182bd',"#e6550d"))+
+  xlab("")+
+  ylab("")
+acceptable_3col_pal
+```
+
+無難な3色（やや明るめ）  
+
+```{r}
+acceptable_3col_pal <- dum_dat %>%
+  filter(key %in% c("A", "B", "C")) %>% 
+  ggplot(aes(x = key, y = value, fill=key))+
+  geom_col()+
+  # scale_fill_manual(values = c("#c1afa8", "#7ec8ef","#F8766D"))+
+    # scale_fill_manual(values = c("#a9a9ac","#5da6f4", "#ff8078"))+
+     # scale_fill_manual(values = c("#c1afa8","#5da6f4", "#ff8078"))+
+   scale_fill_manual(values = c("#bdbdbd","#5da6f4", "#F8766D"))+
+  xlab("")+
+  ylab("")
+acceptable_3col_pal
+```
+
+
+
+
+
+無難な5色  
+
+```{r}
+acceptable_5col_pal <- dum_dat %>%
+  filter(key %in% c("A", "B", "C", "D", "E")) %>% 
+  ggplot(aes(x = key, y = value, fill=key))+
+  geom_col()+
+  scale_fill_manual(values = c('#bdbdbd',"#F8766D", "#00BFC4", "#619CFF", "#F564E3"))+
+  xlab("")+
+  ylab("")
+acceptable_5col_pal
+```
+
+------------------------------------------------------------------------
+
+# モデル
+
+## モデル化の基本
+
+モデルの目的は、データセットの簡単な低次元の要約。仮説生成と仮説確認には別のデータセットを使用する。\
+1. モデルのfamilyを定義する\
+2. 適合モデル（a fitted
+model）をデータに最も近いファミリーから探索し生成する、適合モデルは何らかの基準で「最良」のモデル
+
+パッケージ`modelr`は基本Rのモデル化機能をパイプで自然に使えるようwrapしたもの。
+
+```{r}
+library(tidyverse)
+library(modelr) 
+options(na.action = na.warn)
+```
+
+`sim1`は`modelr`に格納されている模擬データセットの1つ、線形パターン`y = a_0 + a_1 * x`を示す。
+
+```{r}
+ggplot(sim1, aes(x,y)) +
+  geom_point()
+sim1
+```
+
+ランダムに線を重ねる。
+
+```{r}
+models <- tibble(
+  # -20〜40の間で250個の実数をランダムに生成
+  a1 = runif(250, -20, 40),
+  a2 = runif(250, -5, 5)
+)
+ggplot(sim1, aes(x, y)) + 
+  # 250組の(a1, a2)により250本の直線が引かれる
+  geom_abline(aes(intercept = a1, slope = a2), data = models, alpha = 1/4) +  
+  geom_point() 
+```
+
+**距離計算**\
+model1はモデルのファミリーを表す、モデルの引数（xの値）とデータを入力にとり、モデルの予測値を出力。
+
+```{r}
+model1 <- function(a, data){
+  a[1] + data$x * a[2]  ##data$xはデータフレームdataの列xを表す
+}
+model1(c(7, 1.5), sim1)
+```
+
+モデルによるy値（**予測**）と実際のデータのy値（**応答**）の差 =
+距離を計算する。複数の個別の距離を全体的な距離にまとめる必要がある、これには「偏差の二乗平均平方根
+root-mean squared
+deviation」（RMSD）を使う。実際と予測の差を計算して、二乗し、平均を取り、その平方根を求める。
+
+```{r}
+measure_distance <- function(mod, data){
+  diff <- data$y - model1(mod, data)
+  sqrt(mean(diff ^ 2))
+}
+measure_distance(c(7, 1.5), sim1)
+```
+
+modelsの中の250組全ての(a1, a2)に対してRMSDを計算。
+
+```{r}
+sim1_dist <- function(a1, a2){
+  measure_distance(c(a1, a2), sim1)
+}
+# map2は引数を2つ取ることができる、計算したRMSDを列distに格納
+models <- models %>% 
+  mutate(dist = purrr::map2_dbl(a1, a2, sim1_dist)) 
+models
+```
+
+最良の10モデルをプロット、distが小さいほど良いモデル。
+
+```{r}
+ggplot(sim1, aes(x, y)) + 
+  geom_point(size = 2, colour = "grey30") + 
+  geom_abline(
+    aes(intercept = a1, slope = a2, colour = -dist), ## color = -distで最小のdistが一番明るい色になる
+    data = filter(models, rank(dist) <= 10)  ## distの小さいもの10位を選ぶ
+  )
+```
+
+モデルを観測と考えて、散布図を描き,
+-distで色付け、最良の10モデルを赤丸で囲む。
+
+```{r}
+ggplot(models, aes(a1, a2)) +
+  geom_point(
+    data = filter(models, rank(dist) <= 10),
+    size =4, color = "red"
+  ) +
+  geom_point(aes(color = -dist))
+```
+
+------------------------------------------------------------------------
+
+格子探索、より系統的に等間隔に格子点を生成する。どこに最良のモデルがあるか見当がついたので、大雑把に格子のパラメータを選ぶ。`expand.grid`関数はn個のベクトルに含まれる要素の全ての組み合わせをすばやく書き出す。
+
+```{r}
+grid <- expand.grid(
+  a1 = seq(-5, 20, length = 25),
+  a2 = seq(1, 3, length = 25)
+) %>% 
+  mutate(dist = purrr::map2_dbl(a1, a2, sim1_dist))
+
+grid %>% 
+  ggplot(aes(a1, a2)) +
+  geom_point(
+    data = filter(grid, rank(dist) <= 10),
+    size = 4, color = "red"
+  ) +
+  geom_point(aes(color = -dist))
+```
+
+最良の10モデルを元のデータに重ねる。
+
+```{r}
+ggplot(sim1, aes(x, y)) +
+  geom_point(size = 2, color = "grey30") +
+  geom_abline(
+    aes(intercept = a1, slope = a2, color = -dist),
+    data = filter(grid, rank(dist) <= 10)
+  )
+```
+
+------------------------------------------------------------------------
+
+**ニュートン法による最良モデルの探索**\
+モデルとデータセットとの距離を定義する関数とモデルのパラメータを変更して距離を最小にできるアルゴリズムがあれば、最良のモデルが求まる。
+
+```{r}
+best <- optim(c(0,0), measure_distance, data = sim1)  
+best$par
+ggplot(sim1, aes(x,y)) +
+  geom_point(size =2, color = "grey30") +
+  geom_abline(intercept = best$par[1], slope = best$par[2])
+```
+
+線形モデルの適合専用に設計された`lm()`は`optim()`を使わないで、線形モデルの数学的構造を活用する。`lm()`はフォーミュラ（formula）という特別な形式でモデルファミリーを指定する。`y ~ x`は`y = a_1 + a_2 * x`と同等。
+
+```{r}
+sim1_mod <- lm(y ~ x, data = sim1)  ## 
+coef(sim1_mod)
+```
+
+## モデルの可視化
+
+### 予測
+
+予測はモデルが補足したパターンを示唆。
+`data_grid()`はデータのある領域を等間隔に覆う格子を生成。`modeler::add_prediction()`は引数にデータフレームとモデルを取り、モデルの予測をデータフレームの新たな列に追加する。
+
+```{r}
+grid <- sim1 %>%
+  data_grid(x)
+grid
+#予測を追加、列predが追加される
+grid <- grid %>%
+  add_predictions(sim1_mod)
+grid
+ggplot(sim1, aes(x)) +   ##予測をプロット
+  geom_point(aes(y=y)) +
+  geom_line(
+    aes(y = pred),
+    data= grid,
+    colour = "red",
+    linewidth = 1
+  )
+```
+
+## 残差
+
+残差とは観測値と予測値の距離。残差はモデルが見逃しているパターンを伝える。`modeler::add_residuals()`は引数に元のデータセットとモデルを取り、データフレームに残差を追加。残差の平均は常に0になる。
+
+```{r}
+sim1 <- sim1 %>%
+  add_residuals(sim1_mod)  ##残差 residが追加される
+sim1
+# 度数分布多角形を描いて残差の分布の広がりを理解する
+ggplot(sim1, aes(resid)) +
+  geom_freqpoly(binwidth = 0.5) 
+```
+
+元の予測の代わりに残差を使ってプロットすることも多い。残差がランダムなノイズに見えるなら、モデルはデータセットのパターンをしっかり補足したと言える。
+
+```{r}
+ggplot(sim1, aes(x, resid)) +
+  geom_ref_line(h = 0) + ## 参照となる線を引く
+  geom_point()
+
+```
+
+## フォーミュラとモデルファミリー
+
+`model_matrix()`はデータフレームとフォーミュラを引数にし、モデル方程式を表すtibbleを返す。出力の各列にはモデルの係数が関連づけられ、関数は常に`y = a_1 * out1 + a_2 * out_2`。
+
+```{r}
+df <- tribble(
+  ~y, ~x1, ~x2,
+  4, 2, 5,
+  5, 1, 6
+)
+# Rが切片をモデルに追加する時は、デフォルトで1ばかりの列を追加する
+model_matrix(df, y ~ x1)
+# 1ばかりの列を追加したくなければ、-1で明示的に取り消す
+model_matrix(df, y ~ x1 - 1)
+model_matrix(df, y ~ x1 + x2)
+
+```
+
+## カテゴリ変数
+
+`model_matrix()`はカテゴリ変数を(0,
+1)の数値に変換できる。下記の例ではカテゴリ変数`sex`を`sex_male`に変換。`sex_male`は`sex`がmaleならば1、その他ならば0。
+
+```{r}
+df <- tribble(
+  ~ sex, ~ response,
+  "male", 1,
+  "female", 2,
+  "male", 1
+)
+model_matrix(df, response ~ sex)
+```
+
+sim2はカテゴリ変数`x`(a, b, c,
+d)を含むサンプルデータ。カテゴリ変数`x`のモデルは、各カテゴリで平均値を予測する。平均が偏差の二乗平均平方根距離（RMSD）を最小化するから。
+
+```{r}
+data(sim2)
+ggplot(sim2) +
+  geom_point(aes(x,y))
+
+mod2 <- lm(y ~ x, data = sim2) ## モデルを適合させて予測を生成
+grid <- sim2 %>%
+  data_grid(x) %>% 
+  add_predictions(mod2)
+grid
+
+ggplot(sim2, aes(x)) +
+  geom_point(aes(y = y)) +
+  geom_point(
+    data = grid,
+    aes(y = pred),
+    color = "red",
+    size =4
+  )
+
+```
+
+## 交互作用（連続とカテゴリ）
+
+sim3にはカテゴリ予測子`x2`と連続予測子`x1`が含まれる。
+
+```{r}
+data(sim3)
+ggplot(sim3, aes(x1, y)) +
+  geom_point(aes(color = x2))
+```
+
+mod1：変数を`+`で追加するとモデルは効果を他の全てとは独立に推定。mod2：`*`で追加すると**独立作用に加えて交互作用**を考慮する。すなわち`y ~ x1 * x2`は`y = a_0 + a_1 * x1 + a2_ * x2 + a_12 * x1 * x2`、に翻訳される。
+
+```{r}
+mod1 <- lm(y ~ x1 + x2, data = sim3)  ## 変数を+で追加するとモデルは効果を他の全てとは独立に推定
+mod2 <- lm(y ~ x1 * x2, data = sim3)  ## *で追加すると独立作用に加えて交互作用を考慮する
+```
+
+2つの予測子があるので`data_grid()`に両方の変数を指定する必要がある、x1とx2の全ての一意な値を探し出し、全ての組み合わせを生成。両方のモデルから同時に予測を生成するには、`spread_prediction()`で各予測に対応する新たな列を作る。
+
+```{r}
+grid <- sim3 %>% 
+  data_grid(x1, x2) %>% 
+  spread_predictions(mod1, mod2)
+grid
+```
+
+各予測を1列`pred`にまとめて出力するには、行に追加する`gather_prediction()`を使用。
+
+```{r}
+grid <- sim3 %>% 
+  data_grid(x1, x2) %>% 
+  gather_predictions(mod1, mod2)
+grid
+```
+
+両方のモデルの結果を`facet_wrap()`で1つのプロットにまとめる。2つの変数の独立作用のみを考慮したmod1ではどの線の傾きも等しい。交互作用を考慮したmod2では各線で傾きも切片も異なる。
+
+```{r}
+ggplot(sim3, aes(x1, y, color = x2)) +
+  geom_point() +
+  geom_line(data = grid, aes(y = pred)) +
+  facet_wrap(~ model)
+```
+
+残差を調べて、どちらのモデルが適切かを検証。数学的手法ではなく、モデルが対象としているパターンを補足したかどうかの定性的評価に着目。mod2の残差では自明なパターンがほとんど無いのに対し、mod1の残差では、bである種のパターンが見逃されている。
+
+```{r}
+sim3 <- sim3 %>% 
+  gather_residuals(mod1, mod2)
+ggplot(sim3, aes(x1, resid, color =x2)) +
+  geom_point() +
+  facet_grid(model~x2)
+```
+
+## 交互作用（２つの連続変数）
+
+sim4は2つの連続変数x1,
+x2を含むサンプルデータ。交互作用を考慮しない場合とする場合でモデルを構築。
+
+```{r}
+data(sim4)  ## 2つの連続変数x1, x2を含む
+mod1 <- lm(y ~ x1 + x2, data = sim4)
+mod2 <- lm(y ~ x1 * x2, data = sim4)
+
+grid <- sim4 %>% 
+  data_grid(
+    x1 = seq_range(x1, 5), ## x1の一意の値すべてを使う代わりに最小値と最大値の間の5つの格子値を等間隔に使用
+    x2 = seq_range(x2, 5) 
+  ) %>% 
+  gather_predictions(mod1, mod2)
+grid
+```
+
+モデルを可視化、2つの連続予測子があるのでモデルを3次元表面で考える。
+
+```{r}
+ggplot(grid, aes(x1, x2)) +
+  geom_tile(aes(fill = pred)) +
+  facet_wrap( ~ model)
+```
+
+表面を上から見るのではなく、複数のスライスを表示して横から見る。
+
+```{r}
+ggplot(grid, aes(x1, pred, colour = x2, group = x2)) + 
+  geom_line() +
+  facet_wrap(~ model)
+ggplot(grid, aes(x2, pred, colour = x1, group = x1)) + 
+  geom_line() +
+  facet_wrap(~ model)
+```
+
+## 変換
+
+`log(y) ~ sqrt(x1) + sqrt(x2)`は`log(y) = a_1 + a_2 * sqrt(x1) + a_3 * sqrt(x2)`、に変換される。\
+変換が+,\*,\^,-を含むなら`I()`でラップして、Rがモデル指定の一部と間違えないようにする。\
+例： `y ~ x + I(x^2)`は`y = a_1 + a_2*x + a_3 * x^2`、と翻訳される。\
+`I()`を忘れて、`y ~ x^2 + x`、と指定するとRは`y ~ x*x + x`を計算する、`x*x`はxと自分自身の交互作用を意味するのでxと同じになり,
+`y = a_1 + a_2*x`を指定することになる。
+モデルが何をしているのかは、`model_matrix()`で方程式`lm()`が適合しているのかは正確に何であるかを確認できる。
+
+```{r}
+df <- tribble(
+  ~y, ~x,
+  1,  1,
+  2,  2, 
+  3,  3
+)
+model_matrix(df, y ~ x^2 + x)
+model_matrix(df, y ~ I(x^2) + x)
+```
+
+`poly()`で多項式に適合させることができる。ただしデータの範囲外では、多項式が急激に正または負の無限大になるため、自然スプライン`spline::ns()`を使う方が安全。
+
+```{r}
+model_matrix(df, y ~ poly(x, degree =2))
+library(splines)
+model_matrix(df, y ~ ns(x, df = 2)) # dfはdegree of freedom
+```
+
+非線形関数の近似。
+
+```{r}
+sim5 <- tibble(
+  x = seq(0, 3.5*pi, length = 50),
+  y = 4 * sin(x) + rnorm(length(x))
+)
+ggplot(sim5, aes(x,y)) + geom_point()
+# 以下の5つのモデルを適合させる
+mod1 <- lm(y ~ ns(x, 1), data = sim5)
+mod2 <- lm(y ~ ns(x, 2), data = sim5)
+mod3 <- lm(y ~ ns(x, 3), data = sim5)
+mod4 <- lm(y ~ ns(x, 4), data = sim5)
+mod5 <- lm(y ~ ns(x, 5), data = sim5)
+
+grid <- sim5 %>% 
+  data_grid(x = seq_range(x, n = 50, expand = 0.1)) %>%  ## expand = 0.1は範囲を10%拡張する
+  gather_predictions(mod1, mod2, mod3, mod4, mod5, .pred = "y")
+
+ggplot(sim5, aes(x, y)) + 
+  geom_point() +
+  geom_line(data = grid, colour = "red") +
+  facet_wrap(~ model)
+```
+
+## 欠損値
+
+欠損値は変数間の関係に何の情報ももたらさないので、モデル関数は欠損値を含む行を削除する。
+
+## 他のモデルファミリー
+
+線形モデルでは残差が正規分布であることも仮定する。\
+一般化線形モデル`glm()`では目的変数の残差が正規分布に従わないデータに適用する、目的変数を変換して解析。  
+  
+------------------------------------------------------------------------  
+  
+# データ解析の実例
+## データの正規性の検証  
+現実のデータを統計解析する際は、まずデータが正規分布に従っているか否か、すなわち正規性があるかどうかを確認する。  
+まずデータをプロットして分布の状態を目視で確認するのと同時に、正規性の検定を行う。  
+データの正規性の検定には**シャピロ・ウィルク検定**がよく用いられる。Rではデフォルトでインストールされている関数`shapiro.test()`で検定することができる。この検定の帰無仮説は「データxが正規分布している」であり、計算されたp値が0.05以上ならば帰無仮説を棄却できず、従ってデータxは正規分布していると結論される。 
+
+データxが正規分布する例：  
+```{r}
+x <-rnorm(50, mean = 5, sd = 3)
+shapiro.test(x)
+```
+
+データxが正規分布しない例：  
+```{r}
+x <- runif(50, min = 0, max = 100)
+shapiro.test(x)
+```
+
+`shapiro.test()`に渡すデータには`NaN`が含まれていても計算できるが、`NaN`以外の要素の個数が3〜5000という制限がある。そのため5000を超える場合は`sample()`による無作為抽出で対応する。
+
+```{r}
+x <- rnorm(6000, mean = 10, sd = 3)
+sample_5000 <- sample(x, 5000, replace = FALSE) 
+shapiro.test(sample_5000)
+```
+
+`shapiro.test()`の入力はベクトルでありデータフレーム形式には対応していないため、データフレーム中のデータを渡すには自作関数を作る必要がある。実例は[こちら](file:///Users/masak_takaine/Dropbox/230315-17_ade12_Ade4-GFP/230315_ade12_Ade4-GFP.html)のページ。  
+  
+## パラメトリック検定とノンパラメトリック検定  
+2群のデータを比較する場合、データに正規性がある場合はパラメトリック検定、正規性が無い場合はノンパラメトリック検定で統計検定する。  
+
+**パラメトリック検定**  
+
+- Studentのt検定（2群比較で等分散を仮定）  
+- Welchのt検定（2群比較で等分散を仮定しない）  
+
+**ノンパラメトリック検定**  
+
+- Mann-Whitneyのt検定（2群比較で等分散を仮定しない） 
+
+------------------------------------------------------------------------
+
+## 多群データの比較  
+3群以上のデータを比較する場合、データの正規性の検証後にさらに**一元配置分散分析**により各群の平均値に差があるか検証する必要がある。有意な差が検出された場合は、**事後検定**で比較する。  
+
+**正規性がある場合**  
+
+-  ANOVA（パラメトリックな一元配置分散分析）  
+-  Tukey-Kramer検定（全ての群の組み合わせを比較）  
+-  Dunnett検定（対照群とそれ以外を比較）  
+
+**正規性が無い場合**  
+
+- Kruskal-Wallis検定（ノンパラメトリックな一元配置分散分析）
+- Steel-Dwass検定（全ての群の組み合わせを比較）  
+- Steel検定（対照群とそれ以外を比較）  
+
+------------------------------------------------------------------------
+各種検定の計算方法については、下記の実例集を参考にする。
+
+## 解析実例集  
+下記のリンクを参照：
+
+-   [Ade4顆粒脱会合の経時観察](file:///Users/masak_takaine/Dropbox/230306_Ade4_granule_disassemble/230306_ade4_granule_disassembly.html)\
+-   [蛍光タンパク質によるAde4凝集体の様相の違い（Kruskal-Wallis+Steel-Dwass）](file:///Users/masak_takaine/Dropbox/200212_Ade4FPtag_analysis/analysis_200214data.html)
+-   [Ade4顆粒形成における1,6-hexanediolの作用の検証（Kruskal-Wallis+Steel-Dwass）](file:///Users/masak_takaine/Dropbox/221025-27_Ade4-mNG_HD/221027_Ade4-mNG_HD.html)\
+-   [Ade4顆粒形成におけるラパマイシンの作用（Welch+Mann-Whitney）](file:///Users/masak_takaine/Dropbox/221027-28_Ade4-mNG_rapamycin/221027-28_Ade4-mNG_rapamycin.html)
+-   [ラパマイシン処理した細胞の細胞内蛍光輝度の解析（Mann-Whitney）](file:///Users/masak_takaine/Dropbox/221027-28_Ade4-mNG_rapamycin/230501_cell_intden_analysis.html)\
+-   [TORC1関連因子遺伝子破壊株におけるAde4-GFP foci形成の観察](file:///Users/masak_takaine/Dropbox/PPAT_project/200217-523_ade4G_tor1mut_data/220524_torc1_mut_analysis.html)
+-   [TORC1関連変異株におけるAde4顆粒形成効率の解析（Dunnett+Steel）](file:///Users/masak_takaine/Dropbox/221026-28_Ade4-mNG_tormut/221026-28_Ade4-mNG_tormut.html)
+-   [ade12変異株におけるAde4顆粒形成の観察（Steel）](file:///Users/masak_takaine/Dropbox/230315-17_ade12_Ade4-GFP/230315_ade12_Ade4-GFP.html)
+-   [In vitroにおけるAde4粒子形成に対する各種プリンの作用（Tukey-Kramer）](file:///Users/masak_takaine/Dropbox/230118_ivc_purines/230118_ivc.html)
+-   [ADE4とade4∆IDR株の生育曲線の解析（Welch）](file:///Users/masak_takaine/Dropbox/220418_gr_analysis/220418_gr_analysis.html)
+-   [出芽酵母Ade4の細胞内濃度の推定](file:///Users/masak_takaine/Dropbox/PPAT_project/221025_Ade4_abundance_data/221025_Ade4_abundance.html)
+-   [各種生物におけるPPATの天然変性領域の解析](file:///Users/masak_takaine/Dropbox/PPAT_project/disorder_prediction/disorder_prediction.html)
